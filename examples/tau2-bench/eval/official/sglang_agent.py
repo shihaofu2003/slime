@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -20,13 +23,36 @@ from tau2.data_model.message import (
     AssistantMessage,
     Message,
     MultiToolMessage,
-    SystemMessage,
     ToolCall,
     ToolMessage,
     UserMessage,
 )
 from tau2.registry import registry
 from transformers import AutoTokenizer
+
+SHARED_DIR = Path(__file__).resolve().parents[2] / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
+
+from protocol_profiles import (  # noqa: E402
+    PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI,
+    PROTOCOL_CURRENT_SINGLE,
+    PROTOCOL_STRICT_SINGLE_V1,
+    domain_policy_for_profile,
+    protocol_block_for_profile,
+    protocol_signature,
+    strict_single_system_prompt,
+)
+from agent_contract import (  # noqa: E402
+    OFFICIAL_AGENT_VIEW,
+    AgentContract,
+    native_agent_message_to_chat,
+    openai_tool_schemas,
+)
+from model_request import (  # noqa: E402
+    build_sglang_sampling_params,
+    with_request_timing,
+)
 
 
 AGENT_NAME = "slime_sglang_agent"
@@ -106,6 +132,64 @@ class SlimeSGLangAgent(LLMAgent):
     """Tau2 text agent for slime-hosted raw sglang generation."""
 
     def __init__(self, tools, domain_policy: str, llm: str, llm_args: dict | None = None):
+        llm_args = dict(llm_args or {})
+        self.protocol_profile = str(
+            llm_args.get("protocol_profile") or PROTOCOL_CURRENT_SINGLE
+        )
+        self.protocol_signature = protocol_signature(self.protocol_profile)
+        supplied_signature = llm_args.get("protocol_signature")
+        if supplied_signature and supplied_signature != self.protocol_signature:
+            raise ValueError(
+                "protocol_signature does not match the selected protocol profile"
+            )
+        if self.protocol_signature is not None:
+            llm_args["protocol_signature"] = self.protocol_signature
+        self.tokenizer = AutoTokenizer.from_pretrained(llm, trust_remote_code=True)
+        self.contract: AgentContract | None = None
+        self.native_tools: list[dict[str, Any]] | None = None
+        if self.protocol_profile == PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI:
+            contract_domain = llm_args.get("contract_domain")
+            if not isinstance(contract_domain, str) or not contract_domain:
+                raise ValueError(
+                    "agent-owned protocol requires llm_args.contract_domain"
+                )
+            contract_environment = registry.get_env_constructor(contract_domain)()
+            try:
+                contract_user_tools = contract_environment.get_user_tools() or []
+            except ValueError:
+                contract_user_tools = []
+            self.contract = AgentContract.create(
+                domain=contract_domain,
+                domain_policy=domain_policy,
+                agent_tools=tools,
+                user_tools=contract_user_tools,
+                chat_template=self.tokenizer.chat_template,
+                profile=self.protocol_profile,
+            )
+            supplied_contract_signature = llm_args.get("agent_contract_signature")
+            if (
+                supplied_contract_signature
+                and supplied_contract_signature != self.contract.agent_contract_signature
+            ):
+                raise ValueError(
+                    "agent_contract_signature does not match the resolved contract"
+                )
+            llm_args["agent_contract_signature"] = (
+                self.contract.agent_contract_signature
+            )
+            domain_policy = self.contract.policy
+            self.single_call_clause_replaced = True
+        elif self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1:
+            domain_policy, self.single_call_clause_replaced = domain_policy_for_profile(
+                domain_policy,
+                self.protocol_profile,
+            )
+            self.native_tools = openai_tool_schemas(tools)
+        else:
+            domain_policy, self.single_call_clause_replaced = domain_policy_for_profile(
+                domain_policy,
+                self.protocol_profile,
+            )
         super().__init__(
             tools=tools,
             domain_policy=domain_policy,
@@ -117,20 +201,35 @@ class SlimeSGLangAgent(LLMAgent):
             self.sglang_url = self.sglang_url[: -len("/v1")] + "/generate"
         if not self.sglang_url.endswith("/generate"):
             self.sglang_url = f"{self.sglang_url}/generate"
-        self.tokenizer = AutoTokenizer.from_pretrained(llm, trust_remote_code=True)
         self.timeout = float(self.llm_args.get("timeout", 300.0))
 
     @property
     def system_prompt(self) -> str:
+        if self.contract is not None:
+            return self.contract.system_prompt
+        if self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1:
+            return strict_single_system_prompt(self.domain_policy)
+        protocol = protocol_block_for_profile(self.protocol_profile)
+        tool_call_choice = (
+            "Make exactly one tool call in this exact format:"
+            if self.protocol_profile == PROTOCOL_CURRENT_SINGLE
+            else "Make one or more tool calls in this exact format:"
+        )
+        tool_call_output_rule = (
+            "Emit exactly one <tool_call> block and no other content."
+            if self.protocol_profile == PROTOCOL_CURRENT_SINGLE
+            else "If you make multiple tool calls, emit one <tool_call> block for "
+            "each call and no other content."
+        )
         return (
             "You are a customer service agent. Complete the user's task while "
             "following the policy exactly.\n\n"
             "In each turn, choose exactly one action:\n"
             "- Send one plain-text message to the user, or\n"
-            "- Make one or more tool calls in this exact format:\n"
+            f"- {tool_call_choice}\n"
             '<tool_call>{"name": "tool_name", "arguments": {"param": "value"}}</tool_call>\n\n'
-            "If you make multiple tool calls, emit one <tool_call> block for each call "
-            "and no other content. Do not send both text and a tool call in the same turn.\n\n"
+            f"{tool_call_output_rule} Do not send both text and a tool call in the same turn."
+            f"{protocol}\n\n"
             "<policy>\n"
             f"{self.domain_policy}\n"
             "</policy>\n\n"
@@ -139,7 +238,17 @@ class SlimeSGLangAgent(LLMAgent):
             "</tools>"
         )
 
-    def _message_to_chat(self, message: Message) -> dict[str, str] | None:
+    def _message_to_chat(self, message: Message) -> dict[str, Any] | None:
+        if self.contract is not None:
+            return self.contract.message_to_chat(
+                message,
+                validate_assistant_tools=False,
+            )
+        if self.native_tools is not None:
+            return native_agent_message_to_chat(
+                message,
+                validate_assistant_tools=False,
+            )
         if isinstance(message, UserMessage):
             return {"role": "user", "content": message.content or ""}
         if isinstance(message, ToolMessage):
@@ -155,7 +264,7 @@ class SlimeSGLangAgent(LLMAgent):
             return {"role": "assistant", "content": message.content or ""}
         return None
 
-    def _chat_messages(self, state) -> list[dict[str, str]]:
+    def _chat_messages(self, state) -> list[dict[str, Any]]:
         messages = [{"role": "system", "content": self.system_prompt}]
         for message in state.messages:
             chat_message = self._message_to_chat(message)
@@ -164,42 +273,41 @@ class SlimeSGLangAgent(LLMAgent):
         return messages
 
     def _sampling_params(self) -> dict[str, Any]:
-        extra_body = self.llm_args.get("extra_body") or {}
-        params = {
-            "temperature": self.llm_args.get("temperature", 0.6),
-            "top_p": self.llm_args.get("top_p", 1.0),
-            "max_new_tokens": self.llm_args.get("max_tokens", 1200),
-            "presence_penalty": 0.0,
-        }
-        if self.tokenizer.eos_token:
-            params["stop"] = [self.tokenizer.eos_token]
-        for key in (
-            "top_k",
-            "presence_penalty",
-            "frequency_penalty",
-            "repetition_penalty",
-        ):
-            if key in self.llm_args:
-                params[key] = self.llm_args[key]
-            if isinstance(extra_body, dict) and key in extra_body:
-                params[key] = extra_body[key]
-        return params
+        return build_sglang_sampling_params(
+            self.llm_args,
+            eos_token=self.tokenizer.eos_token,
+        )
 
-    def _generate_raw(self, prompt: str) -> str:
+    def _generate_raw(self, prompt: str) -> tuple[str, float]:
+        started_at = time.perf_counter()
         with httpx.Client(timeout=httpx.Timeout(self.timeout)) as client:
             response = client.post(
                 self.sglang_url,
                 json={"text": prompt, "sampling_params": self._sampling_params()},
             )
             response.raise_for_status()
-            return (response.json().get("text") or "").strip()
+            text = (response.json().get("text") or "").strip()
+        return text, time.perf_counter() - started_at
 
-    def _assistant_from_text(self, text: str) -> AssistantMessage:
+    def _assistant_from_text(
+        self,
+        text: str,
+        *,
+        request_seconds: float | None = None,
+    ) -> AssistantMessage:
         content = _strip_thinking(text)
         matches = list(_TOOL_CALL_RE.finditer(content))
+        tool_parse_error_count = 0
+        multi_tool_attempt_count = (
+            len(matches)
+            if self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1 and len(matches) > 1
+            else 0
+        )
         if matches:
             non_tool_content = _TOOL_CALL_RE.sub("", content).strip()
-            if not non_tool_content:
+            if multi_tool_attempt_count:
+                tool_parse_error_count = len(matches)
+            elif not non_tool_content:
                 try:
                     tool_calls = []
                     for match in matches:
@@ -216,14 +324,62 @@ class SlimeSGLangAgent(LLMAgent):
                     return AssistantMessage(
                         role="assistant",
                         tool_calls=tool_calls,
-                        raw_data={"text": text},
+                        raw_data=self._raw_data(
+                            text,
+                            request_seconds=request_seconds,
+                        ),
                     )
                 except Exception:
-                    pass
+                    tool_parse_error_count = len(matches)
+            else:
+                tool_parse_error_count = len(matches)
+        elif "<tool_call" in content or "</tool_call>" in content:
+            starts = len(re.findall(r"<tool_call(?:\s[^>]*)?>", content, re.IGNORECASE))
+            ends = content.lower().count("</tool_call>")
+            tool_parse_error_count = max(1, starts, ends)
 
         if not content:
             content = "I need a bit more information to continue. Could you clarify your request?"
-        return AssistantMessage(role="assistant", content=content, raw_data={"text": text})
+        return AssistantMessage(
+            role="assistant",
+            content=content,
+            raw_data=self._raw_data(
+                text,
+                tool_parse_error_count=tool_parse_error_count,
+                multi_tool_attempt_count=multi_tool_attempt_count,
+                request_seconds=request_seconds,
+            ),
+        )
+
+    def _raw_data(
+        self,
+        text: str,
+        *,
+        tool_parse_error_count: int = 0,
+        multi_tool_attempt_count: int = 0,
+        request_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "text": text,
+            "tau2_agent_protocol_profile": self.protocol_profile,
+        }
+        if self.protocol_signature is not None:
+            result["tau2_agent_protocol_signature"] = self.protocol_signature
+        if tool_parse_error_count:
+            result["tau2_tool_parse_error"] = True
+            result["tau2_tool_parse_error_count"] = int(tool_parse_error_count)
+        if multi_tool_attempt_count:
+            result["tau2_single_call_protocol_error"] = True
+            result["tau2_multi_tool_attempt_count"] = int(multi_tool_attempt_count)
+        if self.contract is not None:
+            result.update(self.contract.metadata(view=OFFICIAL_AGENT_VIEW))
+        if request_seconds is not None:
+            result = with_request_timing(
+                result,
+                participant="agent",
+                elapsed_seconds=request_seconds,
+            )
+        return result
 
     def _generate_next_message(
         self, message: ValidAgentInputMessage, state
@@ -235,12 +391,25 @@ class SlimeSGLangAgent(LLMAgent):
         else:
             state.messages.append(message)
 
+        chat_template_args = {}
+        if "enable_thinking" in self.llm_args:
+            chat_template_args["enable_thinking"] = self.llm_args["enable_thinking"]
         prompt = self.tokenizer.apply_chat_template(
             self._chat_messages(state),
             tokenize=False,
             add_generation_prompt=True,
+            tools=(
+                self.contract.tools
+                if self.contract is not None
+                else self.native_tools
+            ),
+            **chat_template_args,
         )
-        return self._assistant_from_text(self._generate_raw(prompt))
+        text, request_seconds = self._generate_raw(prompt)
+        return self._assistant_from_text(
+            text,
+            request_seconds=request_seconds,
+        )
 
 
 def create_slime_sglang_agent(tools, domain_policy: str, **kwargs: Any) -> SlimeSGLangAgent:

@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,6 +23,26 @@ from tau2.data_model.message import (
     UserMessage,
 )
 from transformers import AutoTokenizer
+
+SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
+
+from protocol_profiles import (  # noqa: E402
+    PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI,
+    PROTOCOL_CURRENT_SINGLE,
+    PROTOCOL_STRICT_SINGLE_V1,
+    domain_policy_for_profile,
+    protocol_block_for_profile,
+    protocol_signature,
+    strict_single_system_prompt,
+)
+from agent_contract import (  # noqa: E402
+    OFFICIAL_AGENT_VIEW,
+    AgentContract,
+    native_agent_message_to_chat,
+    openai_tool_schemas,
+)
 
 
 _TOOL_CALL_START = "<tool_call>"
@@ -125,14 +147,75 @@ class TrainableSGLangAgent(LLMAgent):
         *,
         llm: str,
         llm_args: dict | None = None,
+        domain: str | None = None,
+        user_tools=(),
     ):
-        super().__init__(tools=tools, domain_policy=domain_policy, llm=llm, llm_args=llm_args)
-        self.sglang_url = _with_generate_endpoint(self.llm_args["api_base"])
+        llm_args = dict(llm_args or {})
+        self.protocol_profile = str(
+            llm_args.get("protocol_profile") or PROTOCOL_CURRENT_SINGLE
+        )
+        self.protocol_signature = protocol_signature(self.protocol_profile)
+        supplied_signature = llm_args.get("protocol_signature")
+        if supplied_signature and supplied_signature != self.protocol_signature:
+            raise ValueError(
+                "protocol_signature does not match the selected protocol profile"
+            )
+        if self.protocol_signature is not None:
+            llm_args["protocol_signature"] = self.protocol_signature
         self.tokenizer = AutoTokenizer.from_pretrained(llm, trust_remote_code=True)
+        self.contract: AgentContract | None = None
+        self.native_tools: list[dict[str, Any]] | None = None
+        if self.protocol_profile == PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI:
+            if not domain:
+                raise ValueError("agent-owned protocol requires the tau2 domain")
+            self.contract = AgentContract.create(
+                domain=domain,
+                domain_policy=domain_policy,
+                agent_tools=tools,
+                user_tools=user_tools,
+                chat_template=self.tokenizer.chat_template,
+                profile=self.protocol_profile,
+            )
+            supplied_contract_signature = llm_args.get("agent_contract_signature")
+            if (
+                supplied_contract_signature
+                and supplied_contract_signature != self.contract.agent_contract_signature
+            ):
+                raise ValueError(
+                    "agent_contract_signature does not match the resolved contract"
+                )
+            llm_args["agent_contract_signature"] = (
+                self.contract.agent_contract_signature
+            )
+            domain_policy = self.contract.policy
+            self.single_call_clause_replaced = True
+        elif self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1:
+            domain_policy, self.single_call_clause_replaced = domain_policy_for_profile(
+                domain_policy,
+                self.protocol_profile,
+            )
+            self.native_tools = openai_tool_schemas(tools)
+        else:
+            domain_policy, self.single_call_clause_replaced = domain_policy_for_profile(
+                domain_policy,
+                self.protocol_profile,
+            )
+        super().__init__(
+            tools=tools,
+            domain_policy=domain_policy,
+            llm=llm,
+            llm_args=llm_args,
+        )
+        self.sglang_url = _with_generate_endpoint(self.llm_args["api_base"])
         self.timeout = float(self.llm_args.get("timeout", os.environ.get("TAU2_AGENT_TIMEOUT", 600.0)))
 
     @property
     def system_prompt(self) -> str:
+        if self.contract is not None:
+            return self.contract.system_prompt
+        if self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1:
+            return strict_single_system_prompt(self.domain_policy)
+        protocol = protocol_block_for_profile(self.protocol_profile)
         return (
             "You are a customer service agent. Complete the user's task while "
             "following the policy exactly.\n\n"
@@ -141,7 +224,8 @@ class TrainableSGLangAgent(LLMAgent):
             "- Make one or more tool calls in this exact format:\n"
             '<tool_call>{"name":"tool_name","arguments":{"param":"value"}}</tool_call>\n\n'
             "If you make multiple tool calls, emit one <tool_call> block for each call "
-            "and no other content. Do not send both text and a tool call in the same turn.\n\n"
+            "and no other content. Do not send both text and a tool call in the same turn."
+            f"{protocol}\n\n"
             "<policy>\n"
             f"{self.domain_policy}\n"
             "</policy>\n\n"
@@ -150,7 +234,17 @@ class TrainableSGLangAgent(LLMAgent):
             "</tools>"
         )
 
-    def _message_to_chat(self, message: Message) -> dict[str, str] | None:
+    def _message_to_chat(self, message: Message) -> dict[str, Any] | None:
+        if self.contract is not None:
+            return self.contract.message_to_chat(
+                message,
+                validate_assistant_tools=False,
+            )
+        if self.native_tools is not None:
+            return native_agent_message_to_chat(
+                message,
+                validate_assistant_tools=False,
+            )
         if isinstance(message, UserMessage):
             if message.is_tool_call():
                 return None
@@ -168,7 +262,7 @@ class TrainableSGLangAgent(LLMAgent):
             return {"role": "assistant", "content": message.content or ""}
         return None
 
-    def _chat_messages(self, state) -> list[dict[str, str]]:
+    def _chat_messages(self, state) -> list[dict[str, Any]]:
         messages = [{"role": "system", "content": self.system_prompt}]
         for message in state.messages:
             chat_message = self._message_to_chat(message)
@@ -205,12 +299,20 @@ class TrainableSGLangAgent(LLMAgent):
     def _assistant_from_text(self, text: str, meta_info: dict[str, Any]) -> AssistantMessage:
         content = _strip_thinking(text)
         matches = list(_TOOL_CALL_RE.finditer(content))
+        tool_parse_error_count = 0
+        multi_tool_attempt_count = (
+            len(matches)
+            if self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1 and len(matches) > 1
+            else 0
+        )
         if matches:
             non_tool_content = _TOOL_CALL_RE.sub("", content).strip()
-            if not non_tool_content:
-                try:
-                    tool_calls = []
-                    for match in matches:
+            if multi_tool_attempt_count:
+                tool_parse_error_count = len(matches)
+            elif not non_tool_content:
+                tool_calls = []
+                for match in matches:
+                    try:
                         name, arguments = _parse_tool_call_content(match.group("body").strip())
                         tool_calls.append(
                             ToolCall(
@@ -219,31 +321,65 @@ class TrainableSGLangAgent(LLMAgent):
                                 arguments=arguments,
                             )
                         )
+                    except Exception:
+                        tool_parse_error_count += 1
+                if not tool_parse_error_count:
                     return AssistantMessage(
                         role="assistant",
                         tool_calls=tool_calls,
-                        raw_data={
-                            "tau2_rl_agent": True,
-                            "text": text,
-                            "meta_info": meta_info,
-                        },
+                        raw_data=self._raw_data(text, meta_info),
                         generation_time_seconds=meta_info.get("generation_time_seconds"),
                     )
-                except Exception:
-                    pass
+            else:
+                # Tool calls mixed with prose violate the half-duplex output
+                # contract even if each JSON block itself is valid.
+                tool_parse_error_count = len(matches)
+        elif "<tool_call" in content or "</tool_call>" in content:
+            # Includes unclosed tags and malformed blocks that the strict
+            # regular expression intentionally did not parse.
+            starts = len(re.findall(r"<tool_call(?:\s[^>]*)?>", content, re.IGNORECASE))
+            ends = content.lower().count("</tool_call>")
+            tool_parse_error_count = max(1, starts, ends)
 
         if not content:
             content = "I need a bit more information to continue. Could you clarify your request?"
         return AssistantMessage(
             role="assistant",
             content=content,
-            raw_data={
-                "tau2_rl_agent": True,
-                "text": text,
-                "meta_info": meta_info,
-            },
+            raw_data=self._raw_data(
+                text,
+                meta_info,
+                tool_parse_error_count=tool_parse_error_count,
+                multi_tool_attempt_count=multi_tool_attempt_count,
+            ),
             generation_time_seconds=meta_info.get("generation_time_seconds"),
         )
+
+    def _raw_data(
+        self,
+        text: str,
+        meta_info: dict[str, Any],
+        *,
+        tool_parse_error_count: int = 0,
+        multi_tool_attempt_count: int = 0,
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "tau2_rl_agent": True,
+            "tau2_agent_protocol_profile": self.protocol_profile,
+            "text": text,
+            "meta_info": meta_info,
+        }
+        if self.protocol_signature is not None:
+            result["tau2_agent_protocol_signature"] = self.protocol_signature
+        if tool_parse_error_count:
+            result["tau2_tool_parse_error"] = True
+            result["tau2_tool_parse_error_count"] = int(tool_parse_error_count)
+        if multi_tool_attempt_count:
+            result["tau2_single_call_protocol_error"] = True
+            result["tau2_multi_tool_attempt_count"] = int(multi_tool_attempt_count)
+        if self.contract is not None:
+            result.update(self.contract.metadata(view=OFFICIAL_AGENT_VIEW))
+        return result
 
     def _generate_next_message(
         self,
@@ -261,6 +397,11 @@ class TrainableSGLangAgent(LLMAgent):
             self._chat_messages(state),
             tokenize=False,
             add_generation_prompt=True,
+            tools=(
+                self.contract.tools
+                if self.contract is not None
+                else self.native_tools
+            ),
         )
         text, meta_info = self._generate_raw(prompt)
         return self._assistant_from_text(text, meta_info)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generic SCO ACP submit helper for arbitrary training/evaluation scripts.
+# Project-aware job-manager submit helper for training/evaluation scripts.
 
 usage() {
   cat <<'EOF'
@@ -13,22 +13,22 @@ Arguments:
   <script>                   Bash script path to run (positional or --script).
 
 Options:
-  --name <name>              Job display name. Default: derived from script path (drop scripts/ + .sh, replace / with -).
-  --workspace-name <name>    Default: project-one
-  --aec2-name <name>         Default: computing-cluster-01e
-  --gpus <num>               Default: 1
-  --worker-spec <spec>       Default: auto-derived from --gpus
-  --nodes <num>              Default: 1
-  --priority <level>         Default: high
-  --image <url>              Default: project image
-  --storage-mount <mount>    Default: 019d2d50-6ac1-70b5-809c-c9e87fcc8899:/mnt/afs
+  -N, --name <name>          Job name. Default: derived from the script path.
+  -g, --gpus <num>           GPUs per node. Default: 1
+  -c, --cpus <num>           CPU cores per node (use together with --memory).
+  -m, --memory <num>         Memory in GB per node (use together with --cpus).
+  -n, --nodes <num>          Node count. Default: 1
+  -v, --version <version>    Store output below <output_root>/v<version>.
+  -e, --env <key=value>      Export an environment variable; repeat as needed.
+  --image <url>              Container image URL.
+  --conda-env <name>         Conda environment to activate in the job.
   --project-root <path>      Default: repo root
-  --experiment <name>     Experiment name (groups output under output/experiments/<name>/jobs)
-  --output-root <path>       Default: <project_root>/output/jobs or <project_root>/output/experiments/$EXPERIMENT/jobs
-  --log-dir <path>           Default: <output_root>/<job_name>
-  --spot                     Submit as spot (idle-time) job
+  --experiment <name>       Experiment name (groups output under output/experiments/<name>/jobs)
+  --with-vitabench          Build and activate the isolated VitaBench environment
+  --output-root <path>       Default: <project_root>/output or <project_root>/output/experiments/$EXPERIMENT
+  -s, --spot                 Submit as spot (idle-time) job
   --                         Separator: all args after this are passed to the script
-  -t, --tail                 Wait for run log and tail -f after submission
+  -t, --track, --tail        Track the run log after submission
   --dry-run                  Print command only, do not submit
   -h, --help                 Show this message
 
@@ -44,6 +44,9 @@ Examples:
 
   # Under a named experiment
   bash scripts/submit.sh --experiment exp1 --gpus 8 scripts/train/train.sh
+
+  # VitaBench job (tau2-compatible dependency overlay)
+  bash scripts/submit.sh --with-vitabench examples/vita-bench/run_qwen3_5_4b_smoke.sh
 EOF
 }
 
@@ -52,16 +55,14 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 EXPERIMENT="${EXPERIMENT:-}"
 JOB_PREFIX="${JOB_PREFIX:-fsh}"
-WORKSPACE_NAME="project-one"
-AEC2_NAME="computing-cluster-01e"
 JOB_NAME=""
 GPU_NUMS="1"
-WORKER_SPEC=""
 WORKER_NODES="1"
-PRIORITY="normal"
-TRAINING_FRAMEWORK="pytorch"
+CPU_NUMS=""
+MEMORY_GB=""
+VERSION=""
+CONDA_ENV=""
 CONTAINER_IMAGE_URL="registry.cn-sh-01.sensecore.cn/ccr-zhicheng-06/slimerl/slime"
-STORAGE_MOUNT="019d2d50-6ac1-70b5-809c-c9e87fcc8899:/mnt/afs"
 
 OUTPUT_ROOT=""
 LOG_DIR=""
@@ -69,7 +70,9 @@ SCRIPT=""
 DRY_RUN="0"
 SPOT="0"
 TAIL_LOG="0"
-SCRIPT_ARGS=""
+WITH_VITABENCH="0"
+SCRIPT_ARGS=()
+JOB_ENVS=()
 
 
 derive_job_name_from_script() {
@@ -100,45 +103,43 @@ derive_job_name_from_script() {
 
 derive_output_root() {
   if [[ -n "${EXPERIMENT}" ]]; then
-    echo "${PROJECT_ROOT}/output/experiments/${EXPERIMENT}/jobs"
+    echo "${PROJECT_ROOT}/output/experiments/${EXPERIMENT}"
   else
-    echo "${PROJECT_ROOT}/output/jobs"
-  fi
-}
-
-derive_remote_output_root() {
-  if [[ -n "${EXPERIMENT}" ]]; then
-    echo "output/experiments/${EXPERIMENT}"
-  else
-    echo "output"
+    echo "${PROJECT_ROOT}/output"
   fi
 }
 
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --workspace-name)
-      WORKSPACE_NAME="$2"; shift 2 ;;
+    --workspace-name|--aec2-name|--worker-spec|--training-framework|--storage-mount)
+      echo "[WARN] Ignoring legacy SCO option: $1" >&2
+      shift 2 ;;
     --experiment)
       EXPERIMENT="$2"; shift 2 ;;
-    --aec2-name)
-      AEC2_NAME="$2"; shift 2 ;;
-    --name)
+    -N|--name)
       JOB_NAME="$2"; shift 2 ;;
-    --gpus)
+    -g|--gpus)
       GPU_NUMS="$2"; shift 2 ;;
-    --worker-spec)
-      WORKER_SPEC="$2"; shift 2 ;;
-    --nodes)
+    -c|--cpus)
+      CPU_NUMS="$2"; shift 2 ;;
+    -m|--memory)
+      MEMORY_GB="$2"; shift 2 ;;
+    -n|--nodes)
       WORKER_NODES="$2"; shift 2 ;;
+    -v|--version)
+      VERSION="$2"; shift 2 ;;
+    -e|--env)
+      JOB_ENVS+=("$2"); shift 2 ;;
+    --conda-env)
+      CONDA_ENV="$2"; shift 2 ;;
     --priority)
-      PRIORITY="$2"; shift 2 ;;
-    --training-framework)
-      TRAINING_FRAMEWORK="$2"; shift 2 ;;
+      if [[ "$2" != "normal" ]]; then
+        echo "[WARN] job-manager uses normal priority; ignoring --priority $2" >&2
+      fi
+      shift 2 ;;
     --image)
       CONTAINER_IMAGE_URL="$2"; shift 2 ;;
-    --storage-mount)
-      STORAGE_MOUNT="$2"; shift 2 ;;
     --project-root)
       PROJECT_ROOT="$2"; shift 2 ;;
     --output-root)
@@ -147,11 +148,13 @@ while [[ $# -gt 0 ]]; do
       LOG_DIR="$2"; shift 2 ;;
     --script)
       SCRIPT="$2"; shift 2 ;;
-    --spot)
+    -s|--spot)
       SPOT="1"; shift 1 ;;
+    --with-vitabench)
+      WITH_VITABENCH="1"; shift 1 ;;
     --)
-      shift 1; SCRIPT_ARGS="$*"; break ;;
-    -t|--tail)
+      shift 1; SCRIPT_ARGS=("$@"); break ;;
+    -t|--track|--tail)
       TAIL_LOG="1"; shift 1 ;;
     --dry-run)
       DRY_RUN="1"; shift 1 ;;
@@ -178,7 +181,9 @@ if [[ -z "${JOB_NAME}" ]]; then
   exit 1
 fi
 
-# Append timestamp suffix to job name
+# Keep the original hint for job-manager; the prefixed name is only for the
+# local script snapshot directory created by this compatibility helper.
+JOB_NAME_HINT="${JOB_NAME}"
 TIMESTAMP="$(date +%m%d-%H%M%S)"
 JOB_NAME="${JOB_PREFIX}-${JOB_NAME}-${TIMESTAMP}"
 
@@ -193,33 +198,31 @@ if [[ ! -f "${SCRIPT}" ]]; then
   exit 1
 fi
 
+if [[ "${SCRIPT}" != *.sh ]]; then
+  echo "[ERROR] job-manager only accepts Bash scripts (*.sh): ${SCRIPT}" >&2
+  exit 1
+fi
+
 if [[ -z "${OUTPUT_ROOT}" ]]; then
   OUTPUT_ROOT="$(derive_output_root)"
 fi
 
-if [[ -z "${WORKER_SPEC}" ]]; then
-  if [[ "${GPU_NUMS}" == "8" ]]; then
-    WORKER_SPEC="N6lS.Iu.I10.8.64c1024g"
-  else
-    WORKER_SPEC="N6lS.Iu.I10.${GPU_NUMS}"
-  fi
+if [[ -n "${VERSION}" ]]; then
+  OUTPUT_ROOT="${OUTPUT_ROOT}/v${VERSION}"
 fi
 
 if [[ -z "${LOG_DIR}" ]]; then
-  LOG_DIR="${OUTPUT_ROOT}/${JOB_NAME}"
+  LOG_DIR="${OUTPUT_ROOT}/jobs/${JOB_NAME}"
 fi
 
 mkdir -p "${LOG_DIR}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-RUN_LOG="${LOG_DIR}/run_${TIMESTAMP}.log"
 SUBMIT_LOG="${LOG_DIR}/submit_${TIMESTAMP}.log"
 
 # Copy the script to output directory so that later edits to the original don't
 # affect the submitted job.
 SCRIPT_COPY="${LOG_DIR}/$(basename "${SCRIPT}")"
 cp "${SCRIPT}" "${SCRIPT_COPY}"
-
-REMOTE_OUTPUT_ROOT="$(derive_remote_output_root)"
 
 # Environment setup scripts to run before the training script. Each re-points an
 # editable package install at our /mnt/afs checkout -- the image ships its own
@@ -239,6 +242,14 @@ SETUP_SCRIPTS=(
   "${SERVICE_AGENT_ROOT}/setup/setup_tau2_bench.sh"
 )
 
+# VitaBench has a broad dependency surface, so opt in per submission instead of
+# adding install latency to every slime training job. Its setup runs after tau2
+# so shared packages can enforce tau2's versions inside an isolated overlay.
+VITABENCH_VENV="/tmp/serviceagent-vitabench-venv"
+if [[ "${WITH_VITABENCH}" == "1" ]]; then
+  SETUP_SCRIPTS+=("${SERVICE_AGENT_ROOT}/setup/setup_vitabench_env.sh")
+fi
+
 REMOTE_ENV_SETUP_CMD=""
 if [[ -f "${ENV_SETUP_SCRIPT}" ]]; then
   REMOTE_ENV_SETUP_CMD=". ${ENV_SETUP_SCRIPT} && "
@@ -251,44 +262,65 @@ for _script in "${SETUP_SCRIPTS[@]}"; do
   fi
 done
 
+REMOTE_VITABENCH_ENV_CMD=""
+if [[ "${WITH_VITABENCH}" == "1" ]]; then
+  REMOTE_VITABENCH_ENV_CMD="export VIRTUAL_ENV=${VITABENCH_VENV} && export PATH=${VITABENCH_VENV}/bin:\$PATH && "
+fi
+
 # Each present setup script must succeed -- the `&&` chain aborts before the
 # training script if any fails, so we never run a job against a wrong checkout.
-# Setup + training output all land in RUN_LOG via the brace-group redirect.
-# NOTE: keep the brace-group body POSIX-safe (the container may run this via
-# /bin/sh); bash-isms belong in the setup_*.sh scripts, invoked via `bash`.
-REMOTE_CMD="export PROJECT_ROOT=${PROJECT_ROOT} && export OUTPUT_ROOT=${REMOTE_OUTPUT_ROOT} && { cd ${PROJECT_ROOT} && ${REMOTE_ENV_SETUP_CMD}${REMOTE_SETUP_CMD}bash ${SCRIPT_COPY} ${SCRIPT_ARGS}; } > ${RUN_LOG} 2>&1"
+# job-manager snapshots this Bash entrypoint and owns the final run log. The
+# original task script is already copied above, so later edits cannot affect it.
+REMOTE_CMD="{ cd ${PROJECT_ROOT} && ${REMOTE_ENV_SETUP_CMD}${REMOTE_SETUP_CMD}${REMOTE_VITABENCH_ENV_CMD}bash ${SCRIPT_COPY} \"\$@\"; }"
+JOB_SCRIPT="${LOG_DIR}/job_entrypoint.sh"
+printf '#!/usr/bin/env bash\nset -euo pipefail\n%s\n' "${REMOTE_CMD}" > "${JOB_SCRIPT}"
+chmod +x "${JOB_SCRIPT}"
 
-if [[ "${SPOT}" == "1" ]]; then
-  PRIORITY="normal"
+JOB_CLIENT="${JOB_CLIENT:-/mnt/afs/users/fush/job}"
+if [[ ! -x "${JOB_CLIENT}" ]]; then
+  echo "[ERROR] job-manager client not found: ${JOB_CLIENT}" >&2
+  echo "Run: bash /mnt/afs/users/admin/job-manager/bin/job install -u fush" >&2
+  exit 1
 fi
 
 SUBMIT_CMD=(
-  sco acp jobs create
-  --workspace-name "${WORKSPACE_NAME}"
-  --aec2-name "${AEC2_NAME}"
-  --job-name "${JOB_NAME}"
-  --container-image-url "${CONTAINER_IMAGE_URL}"
-  --training-framework "${TRAINING_FRAMEWORK}"
-  --worker-nodes "${WORKER_NODES}"
-  --worker-spec "${WORKER_SPEC}"
-  --priority "${PRIORITY}"
-  --storage-mount "${STORAGE_MOUNT}"
-  --command "${REMOTE_CMD}"
+  "${JOB_CLIENT}" submit "${JOB_SCRIPT}"
+  --gpus "${GPU_NUMS}"
+  --nodes "${WORKER_NODES}"
+  --name "${JOB_NAME_HINT}"
+  --project-root "${PROJECT_ROOT}"
+  --output-root "${OUTPUT_ROOT}"
+  --image "${CONTAINER_IMAGE_URL}"
 )
 
+if [[ -n "${CPU_NUMS}" ]]; then
+  SUBMIT_CMD+=(--cpus "${CPU_NUMS}")
+fi
+if [[ -n "${MEMORY_GB}" ]]; then
+  SUBMIT_CMD+=(--memory "${MEMORY_GB}")
+fi
+if [[ -n "${CONDA_ENV}" ]]; then
+  SUBMIT_CMD+=(--conda-env "${CONDA_ENV}")
+fi
+for _env in "${JOB_ENVS[@]}"; do
+  SUBMIT_CMD+=(--env "${_env}")
+done
 if [[ "${SPOT}" == "1" ]]; then
-  SUBMIT_CMD+=(--quota-type spot)
+  SUBMIT_CMD+=(--spot)
+fi
+if [[ "${TAIL_LOG}" == "1" ]]; then
+  SUBMIT_CMD+=(--track)
+fi
+if (( ${#SCRIPT_ARGS[@]} > 0 )); then
+  SUBMIT_CMD+=(-- "${SCRIPT_ARGS[@]}")
 fi
 
-echo "[INFO] Job name      : ${JOB_NAME}"
-echo "[INFO] Workspace     : ${WORKSPACE_NAME}"
-echo "[INFO] Cluster       : ${AEC2_NAME}"
-echo "[INFO] Worker spec   : ${WORKER_SPEC}"
+echo "[INFO] Job name hint : ${JOB_NAME_HINT}"
 echo "[INFO] Experiment    : ${EXPERIMENT:-<none>}"
+echo "[INFO] VitaBench env : ${WITH_VITABENCH}"
 echo "[INFO] Project root  : ${PROJECT_ROOT}"
-echo "[INFO] Log directory : ${LOG_DIR}"
-echo "[INFO] Submit log    : ${SUBMIT_LOG}"
-echo "[INFO] Run log       : ${RUN_LOG}"
+echo "[INFO] Output root   : ${OUTPUT_ROOT}"
+echo "[INFO] Snapshot dir  : ${LOG_DIR}"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   echo "[DRY-RUN] Submission command:"
@@ -299,22 +331,4 @@ fi
 
 "${SUBMIT_CMD[@]}" | tee -a "${SUBMIT_LOG}"
 
-echo "[INFO] Submitted. Track with:"
-echo "watch -n 0.5 \"sco acp jobs list --workspace-name=${WORKSPACE_NAME} --page-size 500 | awk 'NR<=3 || /${JOB_NAME}/'\""
-
-if [[ "${TAIL_LOG}" == "1" ]]; then
-  echo "[INFO] Waiting for run log: ${RUN_LOG}"
-  # Wait up to 300 seconds for the log file to appear
-  _wait=0
-  while [[ ! -s "${RUN_LOG}" ]] && [[ $_wait -lt 300 ]]; do
-    sleep 2
-    _wait=$((_wait + 2))
-  done
-  if [[ -s "${RUN_LOG}" ]]; then
-    echo "[INFO] Tailing run log (Ctrl-C to stop)..."
-    tail -f "${RUN_LOG}"
-  else
-    echo "[WARN] Run log did not appear within 300s: ${RUN_LOG}" >&2
-    exit 1
-  fi
-fi
+echo "[INFO] Use 'job list' to view jobs and 'job show <job_id>' for log paths."

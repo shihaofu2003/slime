@@ -203,11 +203,12 @@ output/**
 !output/**/
 !output/**/*.md
 
-# In examples/, track only tau2-bench; ignore the rest (upstream slime examples
-# like coding_agent_rl/geo3k_vlm/search-r1, and the tau-bench retail reference).
-# Re-include the tau2-bench/ dir itself so git descends into it.
+# In examples/, track the ServiceAgent benchmark integrations; ignore the rest
+# (upstream slime examples like coding_agent_rl/geo3k_vlm/search-r1, and the
+# tau-bench retail reference). Re-include each integration dir so git descends.
 examples/*
 !examples/tau2-bench/
+!examples/vita-bench/
 
 # Backup files (the tracked originals live alongside these)
 *.bak

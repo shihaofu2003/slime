@@ -400,6 +400,9 @@ async def generate_rollout_async(
 
     # target_data_size is the total number of valid samples to get
     target_data_size = args.rollout_batch_size
+    data_source_owner = getattr(data_source, "__self__", None)
+    if data_source_owner is not None and hasattr(data_source_owner, "begin_rollout"):
+        data_source_owner.begin_rollout(rollout_id)
 
     data = []
     all_data = []
@@ -426,7 +429,13 @@ async def generate_rollout_async(
             assert len(group) == args.n_samples_per_prompt
             all_data.append(group)
 
-            dynamic_filter_output = call_dynamic_filter(dynamic_filter, args, group)
+            dynamic_filter_output = call_dynamic_filter(
+                dynamic_filter,
+                args,
+                group,
+                rollout_id=rollout_id,
+                data_source=data_source_owner,
+            )
             if not dynamic_filter_output.keep:
                 metric_gatherer.on_dynamic_filter_drop(reason=dynamic_filter_output.reason)
                 state.remaining_batch_size -= 1
@@ -448,6 +457,8 @@ async def generate_rollout_async(
     aborted_samples = await abort(args, rollout_id)
 
     assert len(data) == args.rollout_batch_size, f"Got {len(data)} samples, expected {args.rollout_batch_size}"
+    if data_source_owner is not None and hasattr(data_source_owner, "finish_rollout"):
+        metric_gatherer.add_metrics(data_source_owner.finish_rollout(rollout_id))
     data = sorted(data, key=lambda group: group[0][0].index if isinstance(group[0], list) else group[0].index)
     all_samples = sorted(
         all_data, key=lambda group: group[0][0].index if isinstance(group[0], list) else group[0].index

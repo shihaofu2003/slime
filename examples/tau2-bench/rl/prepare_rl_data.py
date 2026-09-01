@@ -103,6 +103,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional number of rows to convert for smoke tests.",
     )
+    parser.add_argument(
+        "--domain",
+        type=str,
+        default=None,
+        choices=["airline", "retail", "telecom"],
+        help="Optional domain filter (e.g. 'airline' to keep only airline tasks).",
+    )
     return parser.parse_args()
 
 
@@ -117,13 +124,18 @@ def main() -> None:
         if args.limit is not None and len(rows) >= args.limit:
             break
         converted = convert_row(row, source_row=row_index, data_root=data_root)
-        rows.append(converted)
         metadata = converted["metadata"]
+        if args.domain is not None and metadata["domain"] != args.domain:
+            continue
+        rows.append(converted)
         domains[metadata["domain"]] += 1
         db_paths[metadata["db_path"]] += 1
 
     if not rows:
-        raise SystemExit(f"No rows converted from {args.input}")
+        raise SystemExit(
+            f"No rows converted from {args.input}"
+            + (f" (domain={args.domain})" if args.domain else "")
+        )
 
     write_jsonl(args.output, rows)
     summary = {

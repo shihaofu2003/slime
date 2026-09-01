@@ -29,6 +29,32 @@ bash scripts/submit.sh --experiment tau2-eval --gpus 2 \
   examples/tau2-bench/eval/official/models/run_full_qwen3-4b-instruct-2507.sh
 ```
 
+Strict-single-v1 SFT or RL, formal seed 300/301:
+
+```bash
+bash examples/tau2-bench/eval/official/models/run_full_tau2_agent_single_call_v1_user_stop_parser.sh sft 300
+bash examples/tau2-bench/eval/official/models/run_full_tau2_agent_single_call_v1_user_stop_parser.sh rl 301
+```
+
+These wrappers run all 100 test tasks with four trials and record pass@1,
+pass@4(any), pass^4, multi-call output attempts, action/DB accuracy, and
+`max_steps` diagnostics in the summary.
+
+Eight-GPU asynchronous Agent/User pool:
+
+```bash
+bash scripts/submit.sh --experiment tau2-eval-qwen36-user-async-timed --gpus 8 \
+  examples/tau2-bench/eval/official/models/run_full_qwen3_4b_qwen36_user_async_timed.sh
+```
+
+This starts two TP1 Agent workers and three TP2 User workers. The Agent router
+uses `cache_aware`; the User router uses `round_robin` so all three expensive
+User replicas receive traffic. Airline, retail, and telecom run in independent
+processes with initial trajectory concurrency `2:2:5` and a global limit of 9.
+When a domain completes, its slots are redistributed to unfinished domains.
+The summary includes allocation events, Agent/User/environment time shares,
+and request latency percentiles.
+
 Qwen3.5 thinking smoke:
 
 ```bash
@@ -53,6 +79,22 @@ Important environment variables:
   `basename(USER_MODEL_PATH)`.
 - `AGENT_CUDA_VISIBLE_DEVICES` / `USER_CUDA_VISIBLE_DEVICES` - default `0` and
   `1`.
+- `AGENT_REPLICA_CUDA_GROUPS` / `USER_REPLICA_CUDA_GROUPS` - semicolon-separated
+  replica GPU groups, for example `0;1;2;3` and `4,5;6,7`. When set, the runner
+  starts one SGLang worker per group behind a dedicated router.
+- `PARALLEL_DOMAINS` - run selected domains in independent processes, default
+  `0`; `MAX_CONCURRENCY` remains the per-domain trajectory concurrency.
+- `DOMAIN_CONCURRENCY` - optional comma-separated initial concurrency, for
+  example `airline:2,retail:2,telecom:5`. When unset, every selected domain uses
+  `MAX_CONCURRENCY`.
+- `GLOBAL_CONCURRENCY` - global trajectory limit used by elastic domain
+  scheduling; the initial domain allocation must sum to this value.
+- `BORROW_COMPLETED_DOMAIN_SLOTS` - when `1`, a successfully completed domain's
+  slots are redistributed among unfinished domains; default `0`.
+- `ROUTER_POLICY` - compatibility default for both routers, default
+  `cache_aware`.
+- `AGENT_ROUTER_POLICY` / `USER_ROUTER_POLICY` - per-router overrides. The
+  Qwen3.6 asynchronous wrapper uses `cache_aware` / `round_robin`.
 - `PORT` / `USER_PORT` - default `30000` and `30001`.
 - `USER_TOP_P` / `USER_MAX_TOKENS` - optional user sampling controls;
   `USER_MAX_TOKENS` defaults to `512`.
@@ -69,8 +111,10 @@ Important environment variables:
 
 By default the job starts two local sglang services. The agent calls raw
 `/generate` and adapts Qwen native `<tool_call>` text into tau2
-`AssistantMessage` objects. The official tau2 `user_simulator` remains
-unchanged and calls the user service through LiteLLM at `/v1/chat/completions`.
+`AssistantMessage` objects. A timing-only subclass of the official tau2
+`user_simulator` calls the user service through LiteLLM at
+`/v1/chat/completions`; its prompts, tools, and generation behavior are
+unchanged.
 Use `USER_SGLANG=0` to fall back to an external OpenAI-compatible user
 simulator configured by `.env` or `TAU2_USER_API_BASE`.
 

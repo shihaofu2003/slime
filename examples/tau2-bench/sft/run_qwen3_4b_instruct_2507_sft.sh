@@ -36,6 +36,10 @@ SAVE_INTERVAL="${SAVE_INTERVAL:-50}"
 MAX_TOKENS_PER_GPU="${MAX_TOKENS_PER_GPU:-9216}"
 LR="${LR:-1e-5}"
 MIN_LR="${MIN_LR:-1e-6}"
+LOSS_MASK_TYPE="${LOSS_MASK_TYPE:-qwen3}"
+TOOL_KEY="${TOOL_KEY:-tools}"
+CONTEXT_PARALLEL_SIZE="${CONTEXT_PARALLEL_SIZE:-1}"
+TRAIN_SEED="${TRAIN_SEED:-1234}"
 WANDB_PROJECT="${WANDB_PROJECT:-slime-dev}"
 WANDB_GROUP="${WANDB_GROUP:-qwen3-4B-tau2-sft}"
 WANDB_MODE="${WANDB_MODE:-}"
@@ -103,7 +107,9 @@ SFT_ARGS=(
   --rollout-function-path slime.rollout.sft_rollout.generate_rollout
   --prompt-data "${SFT_DATA_PATH}"
   --input-key messages
-  --loss-mask-type qwen3
+  --tool-key "${TOOL_KEY}"
+  --loss-mask-type "${LOSS_MASK_TYPE}"
+  --seed "${TRAIN_SEED}"
   --rollout-shuffle
   --num-epoch "${NUM_EPOCH}"
   --rollout-batch-size "${ROLLOUT_BATCH_SIZE}"
@@ -118,7 +124,7 @@ PERF_ARGS=(
   --tensor-model-parallel-size 1
   --sequence-parallel
   --pipeline-model-parallel-size 1
-  --context-parallel-size 1
+  --context-parallel-size "${CONTEXT_PARALLEL_SIZE}"
   --expert-model-parallel-size 1
   --expert-tensor-parallel-size 1
   --recompute-granularity full
@@ -201,11 +207,9 @@ ray start --head --node-ip-address "${MASTER_ADDR}" --num-gpus "${NUM_GPUS}" \
   --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
 
 _trace_was_on=0
-if [[ -n "${WANDB_API_KEY:-}" ]]; then
-  case "$-" in
-    *x*) _trace_was_on=1; set +x ;;
-  esac
-fi
+case "$-" in
+  *x*) _trace_was_on=1; set +x ;;
+esac
 
 RUNTIME_ENV_JSON="{
   \"env_vars\": {

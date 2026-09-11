@@ -83,6 +83,54 @@ bash scripts/convert_tau2_agent_sft_single_call_v1_final_to_hf.sh
 This path starts from raw `Qwen3-4B-Instruct-2507` and uses its own data and
 checkpoint roots. It does not modify the selected boundary-v2 artifact.
 
+## Official-native expanded data
+
+`build_agent_official_native_expanded.py` reads the raw AReaL
+`datasets/AReaL-tau2-data/tau2_sft_train.jsonl` twice without loading the full
+file into memory. It keeps only dialog-consistent `correct=1, reward=1` rows
+from Airline, Retail, and Telecom. It does not rerun trajectories and does not
+create Banking data.
+
+The converter replaces the source prompt and tool list with the current Tau2
+`LLMAgent.system_prompt` and Agent tool schemas. User/device calls and their
+results are hidden; a following natural-language User report remains visible.
+Assistant batches are expanded in source order into one call per message and
+one target per row, with observed results inserted before later targets. Only
+the final Assistant is supervised. Rows longer than 16,384 native Qwen tokens
+are dropped rather than truncated.
+
+```bash
+bash examples/tau2-bench/sft/build_agent_official_native_expanded.sh
+```
+
+The wrapper builds and validates both outputs, and accepts
+`AREAL_SFT_PATH`, `TOKENIZER_PATH`, `OUTPUT_PATH`, `SMOKE_OUTPUT_PATH`,
+`MAX_TOTAL_TOKENS`, and `SMOKE_SIZE` overrides. Defaults are:
+
+```text
+output/experiments/tau2-sft-official-native-expanded/data/agent_official_native_expanded.jsonl
+output/experiments/tau2-sft-official-native-expanded/data/agent_official_native_expanded_longest32.jsonl
+```
+
+Each row contains only `messages`, runtime-ordered `tools`, and minimal source
+metadata. The converter does not inherit the strict-single-v1 prompt, fixed row
+count, hashes, signatures, or contract metadata.
+
+## Raw-all control
+
+`build_raw_all_sft.sh` streams the unmodified AReaL JSONL and drops only rows
+whose native Qwen rendering of `messages + answer` exceeds 16,384 tokens. It
+retains both successful and failed labels and also writes the 32 longest kept
+rows for the two-update smoke. `prompt_answer_sft_rollout` masks every
+historical Assistant turn and supervises only the top-level `answer`; hidden
+`thinking` and `reasoning` fields are not rendered.
+
+```bash
+bash examples/tau2-bench/sft/build_raw_all_sft.sh
+bash examples/tau2-bench/sft/run_qwen3_4b_instruct_2507_sft_raw_all_max16384.sh smoke
+bash examples/tau2-bench/sft/run_qwen3_4b_instruct_2507_sft_raw_all_max16384.sh full
+```
+
 ## Data preparation
 
 Default output:
@@ -203,3 +251,26 @@ The exact max-8192 training file can be reconstructed at source-dialog level, re
 with the local-first model judge, and mapped back to a strict filtered JSONL using the
 [analysis pipeline](../analysis/README.md). The audit keeps source labels, deterministic
 policy/schema facts, model judgments, and final selection decisions as separate evidence.
+
+The official-native expanded file also has a separate turn-only quality filter. It
+reviews the existing final supervised Assistant message in each JSONL row with two
+independent Qwen3.8-27B `xhigh` passes. Only unanimous `drop` rows are removed;
+`review` and disagreements remain in the training output. The output is copied as a
+byte-identical subset of the input, with no trajectory reconstruction or target repair:
+
+```bash
+python3 examples/tau2-bench/sft/filter_official_native_turns.py prepare
+bash scripts/submit.sh --experiment tau2-sft-turn-quality-qwen38-xhigh-v1 \
+  --name turn-quality-pilot --gpus 1 \
+  examples/tau2-bench/sft/run_qwen38_turn_quality_filter.sh -- --stage pilot
+bash scripts/submit.sh --experiment tau2-sft-turn-quality-qwen38-xhigh-v1 \
+  --name turn-quality-full-00-07 --gpus 8 \
+  examples/tau2-bench/sft/run_qwen38_turn_quality_filter.sh -- \
+  --stage full --shard-start 0 --shard-count 8
+bash scripts/submit.sh --experiment tau2-sft-turn-quality-qwen38-xhigh-v1 \
+  --name turn-quality-full-08-15 --gpus 8 \
+  examples/tau2-bench/sft/run_qwen38_turn_quality_filter.sh -- \
+  --stage full --shard-start 8 --shard-count 8
+python3 examples/tau2-bench/sft/filter_official_native_turns.py finalize
+python3 examples/tau2-bench/sft/filter_official_native_turns.py validate
+```

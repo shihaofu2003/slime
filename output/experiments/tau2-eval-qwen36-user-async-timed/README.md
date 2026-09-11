@@ -7,10 +7,12 @@ domain scheduling, and compare cache-aware with round-robin User routing.
 
 - Round-robin 2-Agent/3-User full evaluation `11878`: all 100 test tasks, four
   trials, seed 300, eight GPUs —
-  [run log](jobs/11878-qwen36-round-robin-2a3u-full-seed300-0901-182544913/run_*_20260901_182544913.log).
+  [run log](jobs/11878-qwen36-round-robin-2a3u-full-seed300-0901-182544913/run_*_20260901_182544913.log),
+  [summary](eval/full-round-robin/seed300_0901_102800_summary.json).
   Submitted with Agent routing `cache_aware`, User routing `round_robin`,
   initial domain concurrency `2:2:5`, and elastic slot borrowing under a global
-  trajectory concurrency of 9.
+  trajectory concurrency of 9. Succeeded with 100 tasks / 400 simulations,
+  zero infrastructure errors, and zero single-call protocol violations.
 - Round-robin 2-Agent/3-User smoke `11851`: 15 tasks per domain, four trials,
   seed 300, eight GPUs —
   [run log](jobs/11851-qwen36-round-robin-2a3u-smoke-15each-0901-170707804/run_*_20260901_170707804.log),
@@ -103,6 +105,32 @@ from 15.51 to 13.81 minutes (11.0%), while the matched stochastic sample changed
 and therefore is not a model-quality comparison. Full evaluation `11878` uses
 the validated topology and routing policy.
 
+Round-robin full evaluation `11878` succeeded. Job wall time was 35.71 minutes:
+services became ready in 5.37 minutes, evaluation and summary generation took
+29.26 minutes, and cleanup completed normally. Domain slots moved
+`2:2:5 -> 0:3:6 -> 0:0:9`; airline finished in 11.34 minutes, retail in 21.08
+minutes, and telecom in 29.02 minutes.
+
+| Scope | Tasks | Trajectories | pass@1 / pass^1 | pass@4(any) | pass^4 | Wall time |
+|---|---:|---:|---:|---:|---:|---:|
+| Airline | 20 | 80 | 30.00% (24/80) | 55.00% (11/20) | 10.00% (2/20) | 11.34 min |
+| Retail | 40 | 160 | 42.50% (68/160) | 75.00% (30/40) | 15.00% (6/40) | 21.08 min |
+| Telecom | 40 | 160 | 4.375% (7/160) | 12.50% (5/40) | 0.00% (0/40) | 29.02 min |
+| Overall | 100 | 400 | 24.75% (99/400) | 46.00% (46/100) | 8.00% (8/100) | 29.26 min |
+
+Across 13,600.28 cumulative trajectory seconds, Agent inference used 6,992.89
+seconds (51.42%), User inference used 6,560.38 seconds (48.24%), and other work
+used 47.02 seconds (0.35%). Effective trajectory parallelism was 7.75x. Agent
+p50/p95 latency was 0.73/2.06 seconds; User p50/p95 was 1.01/2.03 seconds.
+Round-robin balanced the three User workers exactly at `2012/2012/2012`
+successful requests including readiness probes. Cache-aware Agent routing
+remained skewed at `6662/998` requests across the two replicas.
+
+Relative to `11756`, job wall time fell from 52.84 to 35.71 minutes (1.48x),
+evaluation wall time fell from 47.29 to 29.26 minutes (1.62x), and GPU-hours
+fell from 7.05 to 4.76 (32.5%). Relative to serial TP2 job `11728`, end-to-end
+wall time improved by 4.88x and GPU-hours fell by 59.0%.
+
 ## Correctness comparison
 
 The serial TP1, serial TP2, and asynchronous runs used the same Agent/User
@@ -110,7 +138,8 @@ model families, test split, 100-task quota, four trials, seed 300, and
 `max_steps=200`. Their official summaries are
 [11723](../tau2-eval-qwen36-user-timing/eval/seed300_summary.json),
 [11728](../tau2-eval-qwen36-user-timing-tp2/eval/seed300_summary.json), and
-[11756](eval/full/seed300_0901_045448_summary.json).
+[11756](eval/full/seed300_0901_045448_summary.json), with the final optimized
+run in [11878](eval/full-round-robin/seed300_0901_102800_summary.json).
 
 | Run | User topology | Scope | Tasks | Trajectories | pass@1 / pass^1 | pass@4(any) | pass^4 |
 |---|---|---|---:|---:|---:|---:|---:|
@@ -126,23 +155,42 @@ model families, test split, 100-task quota, four trials, seed 300, and
 | 11756 | 2 × TP2 asynchronous | Retail | 40 | 160 | 46.88% (75/160) | 80.00% (32/40) | 20.00% (8/40) |
 | 11756 | 2 × TP2 asynchronous | Telecom | 40 | 160 | 3.75% (6/160) | 7.50% (3/40) | 2.50% (1/40) |
 | 11756 | 2 × TP2 asynchronous | Overall | 100 | 400 | 26.50% (106/400) | 48.00% (48/100) | 12.00% (12/100) |
+| 11878 | 3 × TP2 User, round-robin | Airline | 20 | 80 | 30.00% (24/80) | 55.00% (11/20) | 10.00% (2/20) |
+| 11878 | 3 × TP2 User, round-robin | Retail | 40 | 160 | 42.50% (68/160) | 75.00% (30/40) | 15.00% (6/40) |
+| 11878 | 3 × TP2 User, round-robin | Telecom | 40 | 160 | 4.375% (7/160) | 12.50% (5/40) | 0.00% (0/40) |
+| 11878 | 3 × TP2 User, round-robin | Overall | 100 | 400 | 24.75% (99/400) | 46.00% (46/100) | 8.00% (8/100) |
 
-All three runs contain 100 tasks and 400 trajectories, with four trials per
-task, zero infrastructure errors, and zero multi-call output violations. The
-asynchronous overall pass@1 is 0.50 percentage points below the closer serial
-result; pass@4(any) and pass^4 lie between the two serial results. Exact score
-equality is not expected because
-SGLang deterministic inference was disabled and concurrent request ordering
-changes the sampled trajectories.
+All four runs contain 100 tasks and 400 trajectories, with four trials per
+task, zero infrastructure errors, and zero multi-call output violations. For
+`11878`, the overall deltas against serial TP2 `11728` are
+`-2.25/-4.00/+2.00pp` in pass@1/pass@4(any)/pass^4; against serial TP1 `11723`
+they are `-3.25/-1.00/-5.00pp`.
+
+A domain-stratified paired task bootstrap with 20,000 resamples gave the
+following 95% intervals. Every interval includes zero.
+
+| Comparison (`11878 - reference`) | pass@1 | pass@4(any) | pass^4 |
+|---|---:|---:|---:|
+| vs 11723 | -3.25pp `[-7.75, +1.25]` | -1.00pp `[-9.00, +7.00]` | -5.00pp `[-11.00, +1.00]` |
+| vs 11728 | -2.25pp `[-6.00, +1.50]` | -4.00pp `[-11.00, +3.00]` | +2.00pp `[-3.00, +8.00]` |
+| vs 11756 | -1.75pp `[-6.75, +3.25]` | -2.00pp `[-11.00, +7.00]` | -4.00pp `[-10.00, +1.00]` |
+
+The point estimates are not identical, but they are statistically compatible
+with all three references. Exact equality is not expected because SGLang
+deterministic inference was disabled and concurrent request ordering changes
+the sampled trajectories.
 
 | Run | Action accuracy | DB accuracy | `max_steps` terminations | Job wall time | GPU-hours |
 |---|---:|---:|---:|---:|---:|
 | 11723 | 43.97% | 36.46% | 27 | 229.94 min | 7.66 |
 | 11728 | 43.34% | 37.60% | 25 | 174.26 min | 11.62 |
 | 11756 | 42.48% | 35.64% | 22 | 52.84 min | 7.05 |
+| 11878 | 42.94% | 33.51% | 27 | 35.71 min | 4.76 |
 
-The asynchronous action and DB accuracies are within 1.49 and 1.96 percentage
-points of both serial references, and its termination distribution is also
-close. Together with complete trial coverage and zero infrastructure errors,
-this supports using the asynchronous path as the faster replacement for the
-serial evaluation.
+For `11878`, action accuracy is within 1.03 percentage points of both serial
+references; DB accuracy is 2.95–4.09 points lower, while `max_steps` remains in
+the serial range. Complete trial coverage, zero infrastructure errors, zero
+single-call violations, and the paired intervals support using the optimized
+asynchronous path as the faster replacement for serial evaluation. This is a
+correctness/compatibility conclusion, not a claim that stochastic runs must
+produce identical scores.

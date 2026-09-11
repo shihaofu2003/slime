@@ -37,6 +37,7 @@ if str(SHARED_DIR) not in sys.path:
 from protocol_profiles import (  # noqa: E402
     PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI,
     PROTOCOL_CURRENT_SINGLE,
+    PROTOCOL_OFFICIAL_NATIVE,
     PROTOCOL_STRICT_SINGLE_V1,
     domain_policy_for_profile,
     protocol_block_for_profile,
@@ -179,7 +180,10 @@ class SlimeSGLangAgent(LLMAgent):
             )
             domain_policy = self.contract.policy
             self.single_call_clause_replaced = True
-        elif self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1:
+        elif self.protocol_profile in {
+            PROTOCOL_OFFICIAL_NATIVE,
+            PROTOCOL_STRICT_SINGLE_V1,
+        }:
             domain_policy, self.single_call_clause_replaced = domain_policy_for_profile(
                 domain_policy,
                 self.protocol_profile,
@@ -207,6 +211,8 @@ class SlimeSGLangAgent(LLMAgent):
     def system_prompt(self) -> str:
         if self.contract is not None:
             return self.contract.system_prompt
+        if self.protocol_profile == PROTOCOL_OFFICIAL_NATIVE:
+            return super().system_prompt
         if self.protocol_profile == PROTOCOL_STRICT_SINGLE_V1:
             return strict_single_system_prompt(self.domain_policy)
         protocol = protocol_block_for_profile(self.protocol_profile)

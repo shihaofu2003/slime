@@ -42,6 +42,7 @@ _DOMAINS = ("telecom", "airline", "retail")
 _DOMAIN_QUOTA_ENV = "TAU2_RL_DOMAIN_QUOTA"
 _REPLACE_ZERO_SIGNAL_ENV = "TAU2_REPLACE_ZERO_SIGNAL_GROUPS"
 _STRICT_SINGLE_PROFILE = "strict-single-v1"
+_OFFICIAL_NATIVE_PROFILE = "official-native"
 _STATE_KEY = "tau2_domain_quota_v1"
 
 
@@ -121,12 +122,12 @@ class DomainQuotaDataSource(RolloutDataSourceWithBuffer):
         self._domain_offsets = {domain: 0 for domain in _DOMAINS}
         self._domain_epochs = {domain: 0 for domain in _DOMAINS}
         self._domain_orders: dict[str, list[int]] = {}
-        self._dataset_fingerprint = (
-            None
-            if os.environ.get("TAU2_AGENT_PROTOCOL_PROFILE")
-            == _STRICT_SINGLE_PROFILE
-            else self._fingerprint_dataset()
-        )
+        self._dataset_fingerprint = None
+        if os.environ.get("TAU2_AGENT_PROTOCOL_PROFILE") not in {
+            _OFFICIAL_NATIVE_PROFILE,
+            _STRICT_SINGLE_PROFILE,
+        }:
+            self._dataset_fingerprint = self._fingerprint_dataset()
         for domain in _DOMAINS:
             self._refresh_domain_order(domain)
 
@@ -389,7 +390,7 @@ def drop_zero_std_or_unsampleable(args, samples: list[Sample], **kwargs) -> Dyna
             sample.metadata["tau2_turn_credit_group_has_signal"] = has_group_signal
         if not has_group_signal and replace_zero_signal:
             reason = "turn_credit_v2_zero_signal"
-    elif reason is None:
+    elif reason is None and replace_zero_signal:
         global_scores = [compute_rollout_score(args, sample)[0] for sample in samples]
         if (
             len(global_scores) > 1

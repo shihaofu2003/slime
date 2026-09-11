@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export AGENT_EVAL_MODE="legacy-custom"
+
 SERVICE_AGENT_ROOT="${SERVICE_AGENT_ROOT:-/mnt/afs/users/fush/projects/ServiceAgent}"
 PROJECT_ROOT="${PROJECT_ROOT:-${SERVICE_AGENT_ROOT}/slime}"
 MODEL_RUNNER="${PROJECT_ROOT}/examples/tau2-bench/eval/official/models/run_full_tau2_agent_single_call_v1_user_stop_parser.sh"

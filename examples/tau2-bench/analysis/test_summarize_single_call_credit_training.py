@@ -324,12 +324,17 @@ class CreditTrainingSummaryTest(unittest.TestCase):
             "\x1b[36mworker\x1b[0m perf 0: "
             "{'rollout/truncated_ratio': 0.25, "
             "'rollout/zero_std/count_0.0': 2, "
-            "'rollout/dynamic_filter/drop_turn_credit_v2_zero_signal': 1}\n"
+            "'rollout/dynamic_filter/drop_turn_credit_v2_zero_signal': 1, "
+            "'rollout/domain_quota/airline/accepted': 1, "
+            "'rollout/domain_quota/retail/accepted': 2, "
+            "'rollout/domain_quota/telecom/accepted': 2}\n"
             "worker rollout 0: {'rollout/raw_reward': 0.5, 'rollout/truncated': 0.25}\n"
-            "worker step 0: {'train/loss': 0.2, 'train/kl_loss': 0.01, 'train/grad_norm': 1.0}\n"
+            "worker step 0: {'train/loss': 0.2, 'train/kl_loss': 0.01, "
+            "'train/grad_norm': 1.0, 'train/global_batch_size': 40}\n"
             "worker perf 1: {'rollout/truncated_ratio': 0.5}\n"
             "worker rollout 1: {'rollout/raw_reward': 0.75, 'rollout/truncated': 0.5}\n"
-            "worker step 1: {'train/loss': 0.1, 'train/kl_loss': 0.03, 'train/grad_norm': 2.0}\n"
+            "worker step 1: {'train/loss': 0.1, 'train/kl_loss': 0.03, "
+            "'train/grad_norm': 2.0, 'train/global_batch_size': 40}\n"
             "worker step 2: {'train/loss': nan}\n",
             encoding="utf-8",
         )
@@ -341,7 +346,15 @@ class CreditTrainingSummaryTest(unittest.TestCase):
         self.assertEqual(logs["observed_updates"], 2)
         self.assertEqual(logs["metric_parse_error_lines"][str(log.resolve())], [7])
         self.assertEqual(logs["metrics"]["train/loss"]["final"], 0.1)
+        self.assertEqual(logs["metrics"]["train/loss"]["max"], 0.2)
+        self.assertEqual(
+            logs["series"]["train/loss"],
+            [{"step": 0, "value": 0.2}, {"step": 1, "value": 0.1}],
+        )
         self.assertEqual(logs["metrics"]["train/kl_loss"]["mean"], 0.02)
+        self.assertEqual(logs["metrics"]["train/global_batch_size"]["updates"], 2)
+        self.assertEqual(logs["metrics"]["train/global_batch_size"]["min"], 40)
+        self.assertEqual(logs["metrics"]["train/global_batch_size"]["max"], 40)
         sparse = logs["metrics"]["rollout/dynamic_filter/drop_turn_credit_v2_zero_signal"]
         self.assertEqual(sparse["updates"], 2)
         self.assertEqual(sparse["mean"], 0.5)
@@ -351,6 +364,18 @@ class CreditTrainingSummaryTest(unittest.TestCase):
                 "rollout/dynamic_filter/drop_turn_credit_v2_zero_signal"
             ],
             1.0,
+        )
+        self.assertEqual(
+            logs["sparse_count_totals"]["rollout/domain_quota/airline/accepted"],
+            1.0,
+        )
+        self.assertEqual(
+            logs["sparse_count_totals"]["rollout/domain_quota/retail/accepted"],
+            2.0,
+        )
+        self.assertEqual(
+            logs["sparse_count_totals"]["rollout/domain_quota/telecom/accepted"],
+            2.0,
         )
         markdown = render_markdown(result)
         self.assertIn("Accepted-update log metrics", markdown)

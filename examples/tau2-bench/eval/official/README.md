@@ -2,7 +2,7 @@
 
 This eval path follows tau2-bench's recommended interface:
 
-1. Register a `HalfDuplexAgent` factory.
+1. Select Tau2's built-in `llm_agent` by default.
 2. Build `TextRunConfig` for each domain.
 3. Run tau2's official runner and metrics.
 
@@ -29,6 +29,12 @@ bash scripts/submit.sh --experiment tau2-eval --gpus 2 \
   examples/tau2-bench/eval/official/models/run_full_qwen3-4b-instruct-2507.sh
 ```
 
+These commands use `AGENT_EVAL_MODE=official-native`: the Agent calls
+`/v1/chat/completions` with native `tools`, preserves `assistant.tool_calls`
+and `role=tool` history, and uses Tau2's unmodified `LLMAgent.system_prompt`.
+Qwen3-4B defaults to the SGLang `qwen` tool-call parser; the Qwen3.5 wrappers
+select `qwen3_coder` explicitly.
+
 Strict-single-v1 SFT or RL, formal seed 300/301:
 
 ```bash
@@ -36,9 +42,11 @@ bash examples/tau2-bench/eval/official/models/run_full_tau2_agent_single_call_v1
 bash examples/tau2-bench/eval/official/models/run_full_tau2_agent_single_call_v1_user_stop_parser.sh rl 301
 ```
 
-These wrappers run all 100 test tasks with four trials and record pass@1,
-pass@4(any), pass^4, multi-call output attempts, action/DB accuracy, and
-`max_steps` diagnostics in the summary.
+These historical wrappers set `AGENT_EVAL_MODE=legacy-custom` explicitly and
+retain the raw `/generate` adapter, manual prompt, parser, and protocol profile.
+They run all 100 test tasks with four trials and record pass@1, pass@4(any),
+pass^4, multi-call output attempts, action/DB accuracy, and `max_steps`
+diagnostics in the summary.
 
 Eight-GPU asynchronous Agent/User pool:
 
@@ -55,6 +63,25 @@ When a domain completes, its slots are redistributed to unfinished domains.
 The summary includes allocation events, Agent/User/environment time shares,
 and request latency percentiles.
 
+Four-domain evaluation with Banking knowledge retrieval:
+
+```bash
+# Three tasks per domain, one trial.
+bash scripts/submit.sh --experiment tau2-eval-official-native-smoke --gpus 8 \
+  examples/tau2-bench/eval/official/models/run_qwen3_4b_qwen36_user_async_four_domain.sh \
+  -- smoke
+
+# Airline/Retail/Telecom test tasks plus all 97 Banking tasks, four trials.
+bash scripts/submit.sh --experiment tau2-eval-qwen36-user-four-domain --gpus 8 \
+  examples/tau2-bench/eval/official/models/run_qwen3_4b_qwen36_user_async_four_domain.sh \
+  -- full
+```
+
+The fourth domain uses the tau2 registry name `banking_knowledge` and defaults
+to `bm25` retrieval. Initial concurrency is `1:2:2:4` under the same global
+limit of 9; completed-domain slots remain available to unfinished domains.
+The three-domain wrapper remains the default evaluation protocol.
+
 Qwen3.5 thinking smoke:
 
 ```bash
@@ -67,8 +94,19 @@ bash scripts/submit.sh --experiment tau2-eval --gpus 2 \
 Important environment variables:
 
 - `MODEL_PATH` - local policy checkpoint.
+- `AGENT_EVAL_MODE` - `official-native` by default; use `legacy-custom` only
+  for historical custom-prompt/protocol reproduction.
+- `AGENT_SERVED_MODEL_NAME` - stable OpenAI-compatible Agent model name,
+  default `tau2-agent` in official mode.
+- `AGENT_TOOL_CALL_PARSER` - Agent SGLang parser in official mode, default
+  `qwen`; Qwen3.5 wrappers set `qwen3_coder`.
+- `AGENT_PROTOCOL_PROFILE` - legacy mode only. Official mode rejects it.
 - `DOMAINS` - comma-separated domains, default `airline,retail,telecom`.
 - `TASK_SPLIT` - task split, default `test`.
+- `RETRIEVAL_CONFIG` - required when `banking_knowledge` is selected. The
+  four-domain wrapper defaults to `bm25`.
+- `RETRIEVAL_CONFIG_KWARGS_JSON` - optional JSON object passed to the Banking
+  retrieval constructor, for example `{"top_k": 8}`.
 - `NUM_TASKS` - tasks per domain. The smoke script defaults to `1`; full
   wrappers unset it.
 - `NUM_TRIALS` - trials per task. Full wrappers set this to `4`.
@@ -109,14 +147,18 @@ Important environment variables:
   includes a timestamp so repeated smoke submissions do not hit tau2's
   interactive resume prompt.
 
-By default the job starts two local sglang services. The agent calls raw
-`/generate` and adapts Qwen native `<tool_call>` text into tau2
-`AssistantMessage` objects. A timing-only subclass of the official tau2
-`user_simulator` calls the user service through LiteLLM at
-`/v1/chat/completions`; its prompts, tools, and generation behavior are
+By default the job starts two local sglang services. The Agent uses Tau2's
+native LiteLLM path at `/v1/chat/completions`; the User remains a timing-only
+subclass of the official `user_simulator` and also uses its existing
+OpenAI-compatible endpoint. User prompts, tools, and generation behavior are
 unchanged.
 Use `USER_SGLANG=0` to fall back to an external OpenAI-compatible user
 simulator configured by `.env` or `TAU2_USER_API_BASE`.
+
+Every summary records `agent_eval_mode`, `agent`, and
+`agent_protocol_profile`. Official-native and legacy-custom results use
+different prompt, transport, and message-history semantics and must not be
+mixed in a controlled comparison.
 
 Thinking-capable models such as Qwen3.5 use their native thinking template and
 get a larger default generation budget in their wrappers; non-thinking Qwen3

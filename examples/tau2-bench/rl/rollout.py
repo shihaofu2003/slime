@@ -666,8 +666,11 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
     )
     if agent.protocol_signature is not None:
         sample.metadata["tau2_agent_protocol_signature"] = agent.protocol_signature
-    _, global_score_details = compute_rollout_score(args, sample)
-    sample.metadata.update(global_score_details)
+    if os.environ.get("TAU2_USE_REWARD_SHAPING", "1") != "0":
+        _, global_score_details = compute_rollout_score(args, sample)
+        sample.metadata.update(global_score_details)
+    else:
+        sample.metadata["raw_reward"] = float(sample.reward)
     sample.non_generation_time = time.perf_counter() - started
     _dump_trajectory(sample, simulation)
     return sample

@@ -8,11 +8,13 @@ import re
 
 
 PROTOCOL_CURRENT_SINGLE = "current-single"
+PROTOCOL_OFFICIAL_NATIVE = "official-native"
 PROTOCOL_STRICT_SINGLE_V1 = "strict-single-v1"
 PROTOCOL_DEPENDENCY_SAFE_MULTI = "dependency-safe-multi"
 PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI = "agent-owned-dependency-safe-multi"
 PROTOCOL_PROFILES = (
     PROTOCOL_CURRENT_SINGLE,
+    PROTOCOL_OFFICIAL_NATIVE,
     PROTOCOL_STRICT_SINGLE_V1,
     PROTOCOL_DEPENDENCY_SAFE_MULTI,
     PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI,
@@ -30,6 +32,7 @@ DEPENDENCY_SAFE_MULTI_RULE = (
 )
 PROTOCOL_DESCRIPTIONS = {
     PROTOCOL_CURRENT_SINGLE: "At most one tool call per assistant turn.",
+    PROTOCOL_OFFICIAL_NATIVE: "Unmodified Tau2 LLMAgent prompt and native tools.",
     PROTOCOL_STRICT_SINGLE_V1: STRICT_SINGLE_V1_RULE,
     PROTOCOL_DEPENDENCY_SAFE_MULTI: DEPENDENCY_SAFE_MULTI_RULE,
     PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI: (
@@ -63,7 +66,7 @@ def domain_policy_for_profile(policy: str, profile: str) -> tuple[str, bool]:
     """Apply one protocol profile to a tau2 domain policy."""
 
     validate_protocol_profile(profile)
-    if profile == PROTOCOL_CURRENT_SINGLE:
+    if profile in {PROTOCOL_CURRENT_SINGLE, PROTOCOL_OFFICIAL_NATIVE}:
         return policy, False
     if profile == PROTOCOL_STRICT_SINGLE_V1:
         amended, replacements = _SINGLE_CALL_POLICY_RE.subn("", policy, count=1)
@@ -85,7 +88,11 @@ def protocol_block_for_profile(profile: str) -> str:
     """Return the exact Agent system-prompt block for a profile."""
 
     validate_protocol_profile(profile)
-    if profile in {PROTOCOL_CURRENT_SINGLE, PROTOCOL_STRICT_SINGLE_V1}:
+    if profile in {
+        PROTOCOL_CURRENT_SINGLE,
+        PROTOCOL_OFFICIAL_NATIVE,
+        PROTOCOL_STRICT_SINGLE_V1,
+    }:
         return ""
     return (
         "\n\n<tool_call_protocol>\n"
@@ -98,7 +105,7 @@ def protocol_signature(profile: str) -> str | None:
     """Hash every prompt-affecting input used by a protocol profile."""
 
     validate_protocol_profile(profile)
-    if profile == PROTOCOL_STRICT_SINGLE_V1:
+    if profile in {PROTOCOL_OFFICIAL_NATIVE, PROTOCOL_STRICT_SINGLE_V1}:
         return None
     payload = {
         "implementation_version": PROTOCOL_IMPLEMENTATION_VERSION,

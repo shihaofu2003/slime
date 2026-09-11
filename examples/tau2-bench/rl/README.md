@@ -82,10 +82,9 @@ simulator and let Ray use all cards.
   re-sampled per sample (the rollout retries up to `TAU2_RL_MAX_ROLLOUT_RETRIES`
   times); only if a trajectory still exceeds `TAU2_RL_MAX_TRAIN_TOKENS`
   (default 16384) after retries is its group dropped by
-  `filters.drop_zero_std_or_unsampleable` (which also drops zero-shaped-reward-
-  std groups). Dynamic sampling repeatedly draws replacements until the batch
-  contains the requested number of informative groups; rejected groups never
-  enter training.
+  `filters.drop_zero_std_or_unsampleable`. Zero-signal replacement is controlled
+  separately by `TAU2_REPLACE_ZERO_SIGNAL_GROUPS`; rejected groups never enter
+  training.
 - Preflight: `test_rollout_logic.py` runs in the container before any GPU work
   and verifies on-policy tokenization, the loss mask, the over-long flag/neutral
   path, the filter, and the active Agent protocol prompt/metadata. Bypass with
@@ -102,6 +101,8 @@ simulator and let Ray use all cards.
   boundary, permits another call immediately after a tool result, and treats
   multiple tool-call blocks in one model output as a protocol error. Its
   trajectories omit protocol signatures and contract hashes.
+- `official-native` uses Tau2's unmodified `LLMAgent.system_prompt`, native
+  top-level Agent tools, structured Assistant calls, and `role=tool` history.
 - `filters.DomainQuotaDataSource` enforces an exact six-prompt domain quota per
   update. Rejected zero-std or over-cap groups can only draw same-domain
   replacements; domain cursors are checkpointed for deterministic resume.

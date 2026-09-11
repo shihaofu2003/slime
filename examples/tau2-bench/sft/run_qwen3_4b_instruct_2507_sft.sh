@@ -38,8 +38,11 @@ LR="${LR:-1e-5}"
 MIN_LR="${MIN_LR:-1e-6}"
 LOSS_MASK_TYPE="${LOSS_MASK_TYPE:-qwen3}"
 TOOL_KEY="${TOOL_KEY:-tools}"
+ROLLOUT_FUNCTION_PATH="${ROLLOUT_FUNCTION_PATH:-slime.rollout.sft_rollout.generate_rollout}"
+LABEL_KEY="${LABEL_KEY:-}"
 CONTEXT_PARALLEL_SIZE="${CONTEXT_PARALLEL_SIZE:-1}"
 TRAIN_SEED="${TRAIN_SEED:-1234}"
+START_ROLLOUT_ID="${START_ROLLOUT_ID:-}"
 WANDB_PROJECT="${WANDB_PROJECT:-slime-dev}"
 WANDB_GROUP="${WANDB_GROUP:-qwen3-4B-tau2-sft}"
 WANDB_MODE="${WANDB_MODE:-}"
@@ -104,7 +107,7 @@ CKPT_ARGS=(
 )
 
 SFT_ARGS=(
-  --rollout-function-path slime.rollout.sft_rollout.generate_rollout
+  --rollout-function-path "${ROLLOUT_FUNCTION_PATH}"
   --prompt-data "${SFT_DATA_PATH}"
   --input-key messages
   --tool-key "${TOOL_KEY}"
@@ -119,6 +122,12 @@ SFT_ARGS=(
   --disable-compute-advantages-and-returns
   --debug-train-only
 )
+if [[ -n "${LABEL_KEY}" ]]; then
+  SFT_ARGS+=(--label-key "${LABEL_KEY}")
+fi
+if [[ -n "${START_ROLLOUT_ID}" ]]; then
+  SFT_ARGS+=(--start-rollout-id "${START_ROLLOUT_ID}")
+fi
 
 PERF_ARGS=(
   --tensor-model-parallel-size 1

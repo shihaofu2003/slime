@@ -12,8 +12,8 @@ Verifies:
      is honoured; tool / user / system turns are masked off).
   3. ``_fill_sample_from_simulation`` keeps the FULL conversation (no
      leading-message truncation) — the bug that previously broke on-policy.
-  4. The dynamic filter drops over-length and signal-free groups, but retains
-     zero-global-variance groups with local turn penalties.
+  4. The dynamic filter always drops unusable groups and follows the configured
+     policy for zero-signal groups.
   5. The signed Agent contract is identical across official environment
      construction and rollout tokenization, with Agent-only native schemas.
   6. Every behavior error is attributed to exactly one trainable Assistant
@@ -29,6 +29,7 @@ Exit code is non-zero on any failure.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from collections import Counter, deque
@@ -38,6 +39,7 @@ from types import SimpleNamespace
 import torch
 from transformers import AutoTokenizer
 
+from tau2.agent.llm_agent import LLMAgent
 from tau2.data_model.message import AssistantMessage, ToolCall, ToolMessage, UserMessage
 from tau2.data_model.simulation import SimulationRun, TerminationReason
 
@@ -52,13 +54,18 @@ from protocol_profiles import (  # noqa: E402
     PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI,
     PROTOCOL_CURRENT_SINGLE,
     PROTOCOL_DEPENDENCY_SAFE_MULTI,
+    PROTOCOL_OFFICIAL_NATIVE,
     PROTOCOL_STRICT_SINGLE_V1,
     domain_policy_for_profile,
     protocol_block_for_profile,
     protocol_signature,
     strict_single_system_prompt,
 )
-from agent_contract import AgentContract, contract_from_environment  # noqa: E402
+from agent_contract import (  # noqa: E402
+    AgentContract,
+    contract_from_environment,
+    openai_tool_schemas,
+)
 
 HF_CHECKPOINT = os.environ.get(
     "HF_CHECKPOINT",
@@ -90,7 +97,11 @@ def _system_prompt_for_profile(policy: str, profile: str) -> str:
     agent = TrainableSGLangAgent.__new__(TrainableSGLangAgent)
     agent.tools = []
     agent.contract = None
-    agent.native_tools = [] if profile == PROTOCOL_STRICT_SINGLE_V1 else None
+    agent.native_tools = (
+        []
+        if profile in {PROTOCOL_OFFICIAL_NATIVE, PROTOCOL_STRICT_SINGLE_V1}
+        else None
+    )
     agent.domain_policy = amended_policy
     agent.protocol_profile = profile
     return agent.system_prompt
@@ -252,7 +263,7 @@ def _quota_source(quota: dict[str, int]):
     source._dataset_fingerprint = (
         None
         if os.environ.get("TAU2_AGENT_PROTOCOL_PROFILE")
-        == PROTOCOL_STRICT_SINGLE_V1
+        in {PROTOCOL_OFFICIAL_NATIVE, PROTOCOL_STRICT_SINGLE_V1}
         else "preflight-domain-dataset-v1"
     )
     source._active_rollout_id = None
@@ -288,6 +299,20 @@ def main() -> int:
     if unseeded_retry_params != {"temperature": 1.0}:
         failures.append("over-cap retry changed unseeded sampling parameters")
 
+    user_args = rollout._user_llm_args()
+    if os.environ.get("TAU2_USER_TOP_P") and user_args.get("top_p") != float(
+        os.environ["TAU2_USER_TOP_P"]
+    ):
+        failures.append("User top_p was not passed to Tau2")
+    if os.environ.get("TAU2_USER_MAX_TOKENS") and user_args.get("max_tokens") != int(
+        os.environ["TAU2_USER_MAX_TOKENS"]
+    ):
+        failures.append("User token budget was not passed to Tau2")
+    if os.environ.get("TAU2_USER_EXTRA_BODY_JSON"):
+        expected_extra_body = json.loads(os.environ["TAU2_USER_EXTRA_BODY_JSON"])
+        if user_args.get("extra_body") != expected_extra_body:
+            failures.append("User extra_body was not passed to Tau2")
+
     tokenizer = AutoTokenizer.from_pretrained(HF_CHECKPOINT, trust_remote_code=True)
 
     # ---- check 0: shared profile selection and exact prompt wiring -------
@@ -298,6 +323,12 @@ def main() -> int:
         )
         if unchanged != policy or replaced:
             failures.append(f"{domain}: current-single changed the domain policy")
+        official_policy, replaced = domain_policy_for_profile(
+            policy,
+            PROTOCOL_OFFICIAL_NATIVE,
+        )
+        if official_policy != policy or replaced:
+            failures.append(f"{domain}: official-native changed the domain policy")
         amended, replaced = domain_policy_for_profile(
             policy,
             PROTOCOL_DEPENDENCY_SAFE_MULTI,
@@ -346,6 +377,16 @@ def main() -> int:
     )
     if strict_prompt != strict_single_system_prompt(normalized_strict_policy):
         failures.append("strict-single Agent prompt differs from the shared prompt")
+    official_prompt = _system_prompt_for_profile(
+        fixture_policy,
+        PROTOCOL_OFFICIAL_NATIVE,
+    )
+    official_agent = TrainableSGLangAgent.__new__(TrainableSGLangAgent)
+    official_agent.domain_policy = fixture_policy
+    if official_prompt != LLMAgent.system_prompt.fget(official_agent):
+        failures.append("official-native Agent prompt differs from Tau2 LLMAgent")
+    if protocol_signature(PROTOCOL_OFFICIAL_NATIVE) is not None:
+        failures.append("official-native unexpectedly has a protocol signature")
 
     parse_agent = TrainableSGLangAgent.__new__(TrainableSGLangAgent)
     parse_agent.protocol_profile = PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI
@@ -382,6 +423,18 @@ def main() -> int:
         failures.append("strict-single parser did not record its protocol error")
     if any("signature" in key or "hash" in key for key in strict_raw_data):
         failures.append("strict-single parser emitted a hash or signature")
+
+    official_parse_agent = TrainableSGLangAgent.__new__(TrainableSGLangAgent)
+    official_parse_agent.protocol_profile = PROTOCOL_OFFICIAL_NATIVE
+    official_parse_agent.protocol_signature = None
+    official_parse_agent.contract = None
+    official_raw_data = official_parse_agent._raw_data("plain response", {})
+    if any(
+        marker in key
+        for key in official_raw_data
+        for marker in ("signature", "hash", "summary")
+    ):
+        failures.append("official-native parser emitted a signature, hash, or summary")
 
     active_profile = rollout.agent_protocol_profile()
     contract = None
@@ -421,7 +474,31 @@ def main() -> int:
                 failures.append(f"{domain}: contract retained handwritten tools or fake done")
             if domain == "telecom" and "<tech_support_policy>" not in first.system_prompt:
                 failures.append("telecom: full technical-support manual is missing")
-    elif active_profile == PROTOCOL_STRICT_SINGLE_V1:
+    elif active_profile in {PROTOCOL_OFFICIAL_NATIVE, PROTOCOL_STRICT_SINGLE_V1}:
+        if active_profile == PROTOCOL_OFFICIAL_NATIVE:
+            from tau2.registry import registry
+
+            for domain in ("airline", "retail", "telecom"):
+                environment = registry.get_env_constructor(domain)()
+                probe = TrainableSGLangAgent.__new__(TrainableSGLangAgent)
+                probe.tools = environment.get_tools()
+                probe.contract = None
+                probe.native_tools = openai_tool_schemas(probe.tools)
+                probe.domain_policy = environment.get_policy()
+                probe.protocol_profile = PROTOCOL_OFFICIAL_NATIVE
+                expected_prompt = LLMAgent.system_prompt.fget(probe)
+                if probe.system_prompt != expected_prompt:
+                    failures.append(
+                        f"{domain}: official-native prompt differs from Tau2 runtime"
+                    )
+                if "<tools>" in probe.system_prompt:
+                    failures.append(
+                        f"{domain}: official-native prompt contains a tool summary"
+                    )
+                if probe.native_tools != openai_tool_schemas(environment.get_tools()):
+                    failures.append(
+                        f"{domain}: official-native top-level tools differ from Tau2"
+                    )
         native_tools = [_tool_schema("get_order")]
         system_prompt = _system_prompt_for_profile(fixture_policy, active_profile)
         generator = MultiTurnLossMaskGenerator(tokenizer, tokenizer_type="qwen3_full")
@@ -440,15 +517,21 @@ def main() -> int:
     )
     if messages[0]["content"] != system_prompt:
         failures.append("training tokenization did not receive the actual Agent prompt")
-    if active_profile == PROTOCOL_STRICT_SINGLE_V1:
+    if active_profile in {PROTOCOL_OFFICIAL_NATIVE, PROTOCOL_STRICT_SINGLE_V1}:
         if any(
             len(message.get("tool_calls") or []) > 1
             for message in messages
             if message.get("role") == "assistant"
-        ):
+        ) and active_profile == PROTOCOL_STRICT_SINGLE_V1:
             failures.append("strict-single training view retained a multi-call turn")
         if not any(message.get("role") == "tool" for message in messages):
-            failures.append("strict-single training view lost native tool results")
+            failures.append(f"{active_profile} training view lost native tool results")
+        if any(
+            message.get("role") == "user"
+            and str(message.get("content") or "").startswith("Tool result:")
+            for message in messages
+        ):
+            failures.append(f"{active_profile} converted a native tool result to User text")
 
     # ---- check 1: on-policy tokenization (informational) -----------------
     template_tools = contract.tools if contract is not None else native_tools
@@ -576,8 +659,12 @@ def main() -> int:
         failures.append("sample metadata omitted the active protocol profile")
     active_signature = protocol_signature(active_profile)
     if active_signature is None:
-        if any("signature" in key or "hash" in key for key in sample.metadata):
-            failures.append("unsigned protocol emitted a hash or signature in sample metadata")
+        if any(
+            marker in key
+            for key in sample.metadata
+            for marker in ("signature", "hash", "summary")
+        ):
+            failures.append("unsigned protocol emitted a signature, hash, or summary")
     elif sample.metadata.get("tau2_agent_protocol_signature") != active_signature:
         failures.append("sample metadata omitted the active protocol content signature")
 
@@ -612,14 +699,12 @@ def main() -> int:
 
     # The historical signed profile keeps its existing SFT-gate preflight.
     # single-call-v1 intentionally starts from its own checkpoint without a gate.
-    if active_profile != PROTOCOL_STRICT_SINGLE_V1:
+    if active_profile == PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI:
         promotion_path = (
             Path(__file__).resolve().parents[3]
             / "output/experiments/tau2-sft-agent-user-boundary-v2/SFT_PROMOTION.json"
         )
         try:
-            import json
-
             promotion = json.loads(promotion_path.read_text(encoding="utf-8"))
             promotion_decisions = {
                 decision["label"]: decision for decision in promotion["decisions"]
@@ -1210,6 +1295,18 @@ def main() -> int:
             os.environ[
                 "TAU2_REPLACE_ZERO_SIGNAL_GROUPS"
             ] = configured_replace_for_preflight
+        if configured_replace_for_preflight == "0":
+            retained_zero_group = filters.drop_zero_std_or_unsampleable(
+                _Args(),
+                [
+                    rollout.Sample(index=40, prompt="zero", reward=0.0, metadata={}),
+                    rollout.Sample(index=41, prompt="zero", reward=0.0, metadata={}),
+                ],
+            )
+            if not retained_zero_group.keep:
+                failures.append(
+                    "configured vanilla filter replaced a binary zero-variance group"
+                )
         previous_v2_version = os.environ.get("TAU2_TURN_CREDIT_VERSION")
         previous_v2_weight = os.environ.get("TAU2_TURN_CREDIT_REALLOCATION_WEIGHT")
         previous_v2_replace = os.environ.get("TAU2_REPLACE_ZERO_SIGNAL_GROUPS")
@@ -1372,6 +1469,46 @@ def main() -> int:
     # per-sample Python object, never tensorized or broadcast as one dictionary.
     import slime.ray.rollout as ray_rollout
 
+    ray_metadata = getattr(ray_rollout.RolloutManager, "__ray_metadata__", None)
+    manager_class = getattr(
+        ray_metadata,
+        "modified_class",
+        ray_rollout.RolloutManager,
+    )
+    reward_manager = SimpleNamespace(
+        args=SimpleNamespace(
+            advantage_estimator="grpo",
+            reward_key=None,
+            rewards_normalization=True,
+            grpo_std_normalization=True,
+            n_samples_per_prompt=8,
+            rollout_batch_size=2,
+        ),
+        custom_reward_post_process_func=None,
+    )
+    binary_rewards = [0.0] * 8 + [0.0] * 4 + [1.0] * 4
+    reward_samples = [
+        rollout.Sample(index=index, prompt="grpo", reward=reward)
+        for index, reward in enumerate(binary_rewards)
+    ]
+    raw_rewards, group_advantages = manager_class._post_process_rewards(
+        reward_manager,
+        reward_samples,
+    )
+    if raw_rewards != binary_rewards or any(group_advantages[:8]):
+        failures.append(
+            "built-in GRPO did not map the binary zero-variance group to zero advantage"
+        )
+    expected_mixed = torch.tensor(binary_rewards[8:], dtype=torch.float32)
+    expected_mixed = (expected_mixed - expected_mixed.mean()) / (
+        expected_mixed.std() + 1e-6
+    )
+    if not torch.allclose(
+        torch.tensor(group_advantages[8:]),
+        expected_mixed,
+    ):
+        failures.append("built-in GRPO binary group mean/std normalization changed")
+
     original_build_dp_schedule = ray_rollout.build_dp_schedule
     original_ray_put = ray_rollout.ray.put
     try:
@@ -1409,12 +1546,6 @@ def main() -> int:
         # environments, but a Ray ``ActorClass`` after ``@ray.remote`` is
         # active in the real job image.  Exercise the same implementation in
         # both cases without constructing an actor.
-        ray_metadata = getattr(ray_rollout.RolloutManager, "__ray_metadata__", None)
-        manager_class = getattr(
-            ray_metadata,
-            "modified_class",
-            ray_rollout.RolloutManager,
-        )
         split_train_data_by_dp = manager_class._split_train_data_by_dp
         for dp_size in (1, 2):
             manager = SimpleNamespace()
@@ -1544,9 +1675,9 @@ def main() -> int:
             != resume_state["domain_epochs"][inactive_domain]
         ):
             failures.append(f"expert sampling advanced inactive {inactive_domain} cursor")
-    if active_profile == PROTOCOL_STRICT_SINGLE_V1:
+    if active_profile in {PROTOCOL_OFFICIAL_NATIVE, PROTOCOL_STRICT_SINGLE_V1}:
         if "dataset_fingerprint" in resume_state:
-            failures.append("strict-single checkpoint metadata emitted a dataset hash")
+            failures.append(f"{active_profile} checkpoint metadata emitted a dataset hash")
     else:
         wrong_fingerprint = dict(resume_state)
         wrong_fingerprint["dataset_fingerprint"] = "wrong"
@@ -1567,12 +1698,15 @@ def main() -> int:
         for f in failures:
             print("  -", f)
         return 1
+    zero_signal_policy = (
+        "retains" if configured_replace_for_preflight == "0" else "replaces"
+    )
     print(
         f"OK: full-conversation tokens ({len(train_ids)} tok), "
         f"mask sum={sum(train_mask)}, response_length={sample.response_length}, "
-        f"cap={cap}; over-long path flags+neutralizes; filter drops shaped-zero-std "
-        f"and unsampleable groups; turn penalties, DP/CP metadata, and exact domain "
-        f"quotas verified."
+        f"cap={cap}; over-long path flags+neutralizes; filter drops unsampleable "
+        f"groups and {zero_signal_policy} zero-signal groups; turn penalties, DP/CP "
+        f"metadata, and exact domain quotas verified."
     )
     return 0
 

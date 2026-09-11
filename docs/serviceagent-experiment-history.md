@@ -2,7 +2,7 @@
 
 > 这份记录把仓库中的实验 README、报告和作业日志串成一条时间线。它记录的是“做了什么、改了什么、得到什么、哪里好、哪里不好”，不是新的评测报告。
 >
-> **记录边界：** 仓库目前可见的 tau/tau2 实验产物截至 2026-08-16；截至 2026-08-31 没有发现更晚的 tau/tau2 实验 README 或 job 结果。VitaBench 记录也以仓库现有产物为准。
+> **记录边界：** 仓库目前可见的 tau/tau2 实验产物截至 2026-09-01，包括 Qwen3.6 User 的串行基线、异步评测和最终 round-robin 完整任务。VitaBench 记录也以仓库现有产物为准。
 
 ## 1. 范围与口径
 
@@ -39,6 +39,7 @@
 | 主题 | 目前得到的结果 | 做得好的地方 | 仍然不够的地方 |
 |---|---|---|---|
 | 训练链路 | tau1、tau2 SFT/RL、官方评测和 VitaBench 本地角色评测均已跑通至少一条完整路径。 | 依赖、服务、数据、训练、转换和评测之间的接口问题被逐个定位并留下日志。 | VitaBench 远程 User/Evaluator 的 400-task 完整 run 没有得到最终成绩；Qwen3-4B VitaBench 的正式汇总也未形成。 |
+| tau2 评测效率 | 2 Agent + 3 TP2 User、User round-robin 和领域弹性借槽的 11878 完成 100 tasks × 4，结果为 `24.75/46/8%`；作业耗时 35.71 分钟、4.76 GPU-hours。 | 400 个 task/trial 对完整，基础设施错误和 single-call 违规均为 0；相对串行 TP2 作业端到端加速 4.88×。 | 分数不逐项复现；配对区间支持与旧结果相容，但 Agent cache-aware 请求仍为 `6662/998`，Telecom 仍决定尾部。 |
 | tau2 显存与数值 | 单条超长轨迹导致的 logits OOM 已通过完整上下文 tokenization、每轨 16,384 cap、重采样和 group filter 解决；K2 KL 使 100-update 稳定性实验不再 NaN。 | 后续 RL 运行能完成 100 updates，健康检查通过。 | K2 只解决数值崩溃，不能自动解决错误参数、重复调用或 max_steps 退化。 |
 | 当前全局 Agent 谱系 | Agent-owned Contract + boundary 的 long100 iter99 是全局 selected/default：两 seed `29.50 / 56.50 / 10.50%`（`pass@1 / pass@4(any) / pass^4`）。 | 相对 selected SFT `23.63 / 43.50 / 8.50%`，提升 `+5.88 / +13.00 / +2.00pp`；两 seed 的 pass@1 和 pass@4(any) 都提升。 | pass^4 的区间仍跨 0；这是按预先规则得到的 point-estimate/health/protocol “win”，不是每个差异都显著。 |
 | strict-single 与 credit | strict-single-v1 谱系 iter199 为 `31.13 / 61.50 / 10.50%`；credit-core 的 v2 λ=.1 点估计最好，但因 pass@4(any) 与 v1 打平，预注册规则保留 `v1-matched` recipe。 | 通过同一 SFT、User、配额和 KL 的 controlled ablation，避免只看训练 reward 选型。 | DB accuracy 仍低，v2 的优点主要体现在行为规则和局部 credit，尚未证明它严格胜过 v1。 |
@@ -59,6 +60,7 @@
 | 07-31～08-03 | [VitaBench smoke](../output/experiments/vitabench-qwen35-smoke/README.md)、[远程 full](../output/experiments/vitabench-qwen35-full-eval/README.md)、[本地 roles](../output/experiments/vitabench-qwen35-local-role-eval/README.md) | 处理 29 个依赖、四套中文任务、shard queue、schema-5 journal 和本地 User/Evaluator。 | Qwen3.5 本地 legacy protocol-v5 完成 400×4；远程 full 因 rubric/API/成本失败或停止；Qwen3-4B 线完成 40 个固定 10-task shards、1,600/1,600 trajectories，但 aggregate validator 因 profile bug 判 invalid。 |
 | 08-04～08-06 | [boundary SFT](../output/experiments/tau2-sft-agent-user-boundary-v2/README.md)、[boundary RL](../output/experiments/tau2-rl-agent-user-boundary-v2/README.md)、[long100](../output/experiments/tau2-rl-agent-user-boundary-v2-long100/README.md)、[long200](../output/experiments/tau2-rl-agent-user-boundary-v2-long200/README.md)、[domain experts](../output/experiments/tau2-rl-agent-user-boundary-v2-domain-experts/README.md) | 加入 Agent-owned Contract、boundary anchors、turn-aware-v1；完成 100/200 update 和单域 teacher 探索。 | long100 iter99 成为全局默认；long200 是高 KL、偏 Telecom 的诊断候选；Retail teacher 首选，Airline 排除。 |
 | 08-09～08-16 | [Qwen3.5 baseline](../output/experiments/tau2-qwen35-nonthinking-eval/README.md)、[strict-single-v1](../output/experiments/tau2-agent-single-call-v1/README.md)、[credit-core](../output/experiments/tau2-agent-single-call-credit-core/CREDIT_COMPARISON.md) | 把每个 Assistant target 展开成单一 native call；做 User/max_steps/parser 交叉矩阵；比较 turn-credit-v1/v2。 | strict-single iter199 在自身谱系内继续提升；credit-core 按严格主指标规则保留 v1；错误谱系续训被停止或取消。 |
+| 09-01 | [Qwen3.6 User 异步评测](../output/experiments/tau2-eval-qwen36-user-async-timed/README.md) | 从领域串行改为三领域并行，加入固定领域并发、完成领域借槽和 User round-robin；最终使用 2 个 Agent、3 个 TP2 User。 | 11878 在 35.71 分钟内完成 400 条轨迹，`24.75/46/8%`；相对 11728 加速 4.88×，同任务配对差异的 95% 区间均包含 0。 |
 
 ## 4. tau-bench / tau1：先把最小闭环跑起来
 
@@ -79,6 +81,8 @@ tau1 的关键实现位于 [generate_with_tau.py](../examples/tau-bench/generate
 **5.1 依赖与评测框架**
 
 [tau2-deps-probe](../output/experiments/tau2-deps-probe/README.md) 确认新镜像主要缺少 `hatchling`、`editables`、`toml`、`deepdiff`、`litellm` 和 `gymnasium`；5-task airline smoke 平均 reward 为 `0.60`。之后官方评测统一到 tau2 的 `HalfDuplexAgent`、`TextRunConfig` 和 `run_domain`，固定为 airline 20、retail 40、telecom 40 个任务，每任务 4 trials。
+
+09-01 的 [异步评测](../output/experiments/tau2-eval-qwen36-user-async-timed/README.md) 保持同一 Agent/User 模型族、test split、任务配额、4 trials、seed 300 和 `max_steps=200`，只改变执行拓扑。串行 TP1/TP2 作业 11723/11728 分别耗时 229.94/174.26 分钟；最终 11878 用 `2 Agent + 3 TP2 User`、领域并发 `2:2:5`、空闲槽位借用和 User round-robin，在 35.71 分钟内完成。其分领域 `pass@1/pass@4(any)/pass^4` 为 Airline `30/55/10%`、Retail `42.5/75/15%`、Telecom `4.375/12.5/0%`，总体 `24.75/46/8%`。400 个 task/trial 对完整，基础设施错误为 0；相对各旧 run 的总体指标配对 bootstrap 区间均包含 0，因此结论是统计相容而非数值完全一致。
 
 早期评测还解决了两个工程问题：交互式 resume prompt 会阻塞非交互作业，改为 timestamped save prefix；httpx transient `ReadError` 会丢掉整批结果，改为 retry 和 atomic incremental writes。早期 current protocol 的历史对照为 Qwen3.5 thinking `68.2/91`、raw Qwen3 `26.2/58`、旧 SFT `24.5/43`、旧 GRPO `7.5/17`（这里仅展示 `pass@1/pass@4(any)`，与后期 v1 User/parser-on 结果不可直接比较）。
 
@@ -267,7 +271,7 @@ VitaBench 重要失败日志集中在 [local-role Jobs](../output/experiments/vi
 | 主线 | 已纳入目录 |
 |---|---|
 | tau1 | [tau-bench](../output/experiments/tau-bench/README.md) |
-| tau2 基础 | [tau2-deps-probe](../output/experiments/tau2-deps-probe/README.md)、[tau2-eval](../output/experiments/tau2-eval/README.md)、[tau2-eval-local-user](../output/experiments/tau2-eval-local-user/README.md)、[tau2-eval-user-sft](../output/experiments/tau2-eval-user-sft/README.md)、[tau2-hf-convert](../output/experiments/tau2-hf-convert/README.md)、[tau2-qwen35](../output/experiments/tau2-qwen35/README.md)、[tau2-qwen35-nonthinking-eval](../output/experiments/tau2-qwen35-nonthinking-eval/README.md) |
+| tau2 基础 | [tau2-deps-probe](../output/experiments/tau2-deps-probe/README.md)、[tau2-eval](../output/experiments/tau2-eval/README.md)、[tau2-eval-local-user](../output/experiments/tau2-eval-local-user/README.md)、[tau2-eval-user-sft](../output/experiments/tau2-eval-user-sft/README.md)、[Qwen3.6 User 异步评测](../output/experiments/tau2-eval-qwen36-user-async-timed/README.md)、[tau2-hf-convert](../output/experiments/tau2-hf-convert/README.md)、[tau2-qwen35](../output/experiments/tau2-qwen35/README.md)、[tau2-qwen35-nonthinking-eval](../output/experiments/tau2-qwen35-nonthinking-eval/README.md) |
 | tau2 User/协议 | [tau2-user-sft](../output/experiments/tau2-user-sft/README.md)、[tau2-eval-user-stop](../output/experiments/tau2-eval-user-stop/README.md)、[tau2-eval-user-stop-parser](../output/experiments/tau2-eval-user-stop-parser/README.md)、[tau2-eval-user-stop-v2-parser](../output/experiments/tau2-eval-user-stop-v2-parser/README.md)、[tau2-raw-agent-raw-user-parser-on](../output/experiments/tau2-raw-agent-raw-user-parser-on/README.md) |
 | tau2 SFT/审计 | [tau2-sft](../output/experiments/tau2-sft/README.md)、[tau2-sft-quality-audit](../output/experiments/tau2-sft-quality-audit/README.md)、[tau2-sft-multitool-quality-audit](../output/experiments/tau2-sft-multitool-quality-audit/README.md)、[tau2-sft-local-first-relaxed](../output/experiments/tau2-sft-local-first-relaxed/README.md)、[tau2-sft-agent-user-boundary-v2](../output/experiments/tau2-sft-agent-user-boundary-v2/README.md) |
 | tau2 初始/稳定性 RL | [tau2-rl](../output/experiments/tau2-rl/README.md)、[tau2-rl-usercmp](../output/experiments/tau2-rl-usercmp/README.md)、[tau2-rl-stability-k2-fieldreward-lr-sweep](../output/experiments/tau2-rl-stability-k2-fieldreward-lr-sweep/README.md)、[tau2-rl-stability-k2-fieldreward-final-eval](../output/experiments/tau2-rl-stability-k2-fieldreward-final-eval/README.md)、[tau2-rl-local-first-dependency-safe-k2-fieldreward](../output/experiments/tau2-rl-local-first-dependency-safe-k2-fieldreward/README.md)、[tau2-traj-pattern](../output/experiments/tau2-traj-pattern/README.md) |

@@ -45,6 +45,7 @@ PARTIAL_COMPONENT_KEYS = (
 SPARSE_PERF_PREFIXES = (
     "rollout/zero_std/count_",
     "rollout/dynamic_filter/drop_",
+    "rollout/domain_quota/",
 )
 
 
@@ -687,6 +688,7 @@ def _metric_stats(values: list[tuple[int, float]]) -> dict[str, Any]:
     return {
         "updates": len(values),
         "min": min(numeric),
+        "max": max(numeric),
         "mean": statistics.fmean(numeric),
         "final": final_value,
         "final_step": final_step,
@@ -758,9 +760,17 @@ def summarize_logs(paths: list[Path]) -> dict[str, Any]:
                 "train/kl_loss",
                 "train/ppo_kl",
                 "train/grad_norm",
+                "train/global_batch_size",
             }
             or key.startswith(SPARSE_PERF_PREFIXES)
         )
+    }
+    series = {
+        key: [
+            {"step": step, "value": value}
+            for step, value in metric_values[key]
+        ]
+        for key in wanted
     }
     count_totals = {
         key: sum(value for _, value in values)
@@ -790,6 +800,7 @@ def summarize_logs(paths: list[Path]) -> dict[str, Any]:
         },
         "metric_parse_error_lines": parse_error_lines,
         "metrics": wanted,
+        "series": series,
         "sparse_count_totals": count_totals,
         "dynamic_filter_drop_total": dynamic_filter_drop_total,
         "zero_std_count_totals": zero_std_count_totals,
@@ -970,14 +981,15 @@ def render_markdown(summary: dict[str, Any]) -> str:
             f"Parsed {logs['observed_updates']} update steps from {len(logs['sources'])} log files.",
             f"Dynamic-filter drops recorded: {_format_value(logs['dynamic_filter_drop_total'])}.",
             "",
-            "| Metric | Updates | Min | Mean | Final | Final step |",
-            "|---|---:|---:|---:|---:|---:|",
+            "| Metric | Updates | Min | Max | Mean | Final | Final step |",
+            "|---|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for metric, values in logs["metrics"].items():
         lines.append(
             f"| {metric} | {values['updates']} | {_format_value(values['min'])} | "
-            f"{_format_value(values['mean'])} | {_format_value(values['final'])} | "
+            f"{_format_value(values['max'])} | {_format_value(values['mean'])} | "
+            f"{_format_value(values['final'])} | "
             f"{values['final_step']} |"
         )
     return "\n".join(lines) + "\n"

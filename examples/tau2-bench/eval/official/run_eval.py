@@ -2,9 +2,9 @@
 """Run tau2-bench eval through tau2's official runner.
 
 This replaces the legacy direct-AgentGymEnv eval with the official
-HalfDuplexAgent/TextRunConfig/run_domain path. A local sglang policy server is
-addressed through raw `/generate`; the user simulator remains the official
-LiteLLM-backed tau2 user.
+HalfDuplexAgent/TextRunConfig/run_domain path. By default the Agent uses Tau2's
+native ``llm_agent`` through an OpenAI-compatible endpoint. The legacy custom
+SGLang adapter remains available for historical reproduction runs.
 """
 
 from __future__ import annotations
@@ -40,7 +40,12 @@ from namespace_analyzer import (  # noqa: E402
 )
 
 DEFAULT_DOMAINS = ("airline", "retail", "telecom")
-AGENT_NAME = "slime_sglang_agent"
+BANKING_DOMAIN = "banking_knowledge"
+OFFICIAL_AGENT_EVAL_MODE = "official-native"
+LEGACY_AGENT_EVAL_MODE = "legacy-custom"
+OFFICIAL_AGENT_NAME = "llm_agent"
+LEGACY_AGENT_NAME = "slime_sglang_agent"
+AGENT_NAME = OFFICIAL_AGENT_NAME
 
 
 def _parse_csv(value: str | None) -> list[str]:
@@ -230,9 +235,15 @@ def _timing_summary(
             raw_data = _as_mapping(message_record.get("raw_data") or {})
             timing = _as_mapping(raw_data.get("tau2_eval_timing") or {})
             participant = timing.get("participant")
-            if participant not in samples:
+            if participant in samples:
+                elapsed = float(timing.get("elapsed_seconds") or 0.0)
+            elif message_record.get("role") == "assistant" and (
+                message_record.get("generation_time_seconds") is not None
+            ):
+                participant = "agent"
+                elapsed = float(message_record["generation_time_seconds"])
+            else:
                 continue
-            elapsed = float(timing.get("elapsed_seconds") or 0.0)
             samples[participant].append(elapsed)
             timed_seconds += elapsed
         other_seconds += max(0.0, duration - timed_seconds)
@@ -549,6 +560,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-trials", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--max-errors", type=int, default=10)
+    parser.add_argument("--max-retries", type=int, default=3)
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Maximum wall-clock seconds per simulation; unset means no timeout",
+    )
     parser.add_argument("--max-concurrency", type=int, default=1)
     parser.add_argument("--domain-concurrency", default=None)
     parser.add_argument("--global-concurrency", type=int, default=None)
@@ -560,7 +578,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--auto-resume", action="store_true")
     parser.add_argument("--verbose-logs", action="store_true")
+    parser.add_argument("--retrieval-config", default=None)
+    parser.add_argument("--retrieval-config-kwargs-json", default=None)
 
+    parser.add_argument(
+        "--agent-eval-mode",
+        choices=(OFFICIAL_AGENT_EVAL_MODE, LEGACY_AGENT_EVAL_MODE),
+        default=OFFICIAL_AGENT_EVAL_MODE,
+    )
     parser.add_argument("--agent", default=AGENT_NAME)
     parser.add_argument("--agent-llm", required=True)
     parser.add_argument("--agent-api-base", default=None)
@@ -585,25 +610,39 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _evaluate_domain(payload: dict[str, Any], domain: str) -> dict[str, Any]:
-    from sglang_agent import register_slime_sglang_agent
     from timed_user import register_timed_user_simulator
     from tau2.data_model.simulation import TextRunConfig
     from tau2.metrics.agent_metrics import compute_metrics
     from tau2.registry import registry
     from tau2.runner import run_domain
-    from transformers import AutoTokenizer
 
-    register_slime_sglang_agent()
     register_timed_user_simulator()
 
     args = argparse.Namespace(**payload["args"])
+    if args.agent_eval_mode == LEGACY_AGENT_EVAL_MODE:
+        from sglang_agent import register_slime_sglang_agent
+
+        register_slime_sglang_agent()
     agent_args = dict(payload["agent_args"])
     user_args = dict(payload["user_args"])
     selected_protocol_profile = payload["selected_protocol_profile"]
+    retrieval_config = (
+        payload["retrieval_config"] if domain == BANKING_DOMAIN else None
+    )
+    retrieval_config_kwargs = (
+        payload["retrieval_config_kwargs"] if domain == BANKING_DOMAIN else None
+    )
     domain_agent_args = dict(agent_args)
     contract_metadata = None
-    environment = registry.get_env_constructor(domain)()
+    environment_kwargs = {}
+    if retrieval_config is not None:
+        environment_kwargs["retrieval_variant"] = retrieval_config
+    if retrieval_config_kwargs:
+        environment_kwargs["retrieval_kwargs"] = retrieval_config_kwargs
+    environment = registry.get_env_constructor(domain)(**environment_kwargs)
     if selected_protocol_profile == PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI:
+        from transformers import AutoTokenizer
+
         agent_tokenizer = AutoTokenizer.from_pretrained(
             args.agent_llm,
             trust_remote_code=True,
@@ -638,12 +677,16 @@ def _evaluate_domain(payload: dict[str, Any], domain: str) -> dict[str, Any]:
         num_trials=args.num_trials,
         max_steps=args.max_steps,
         max_errors=args.max_errors,
+        max_retries=args.max_retries,
+        timeout=args.timeout,
         max_concurrency=payload.get("_domain_concurrency", args.max_concurrency),
         seed=args.seed,
         save_to=save_to,
         log_level=args.log_level,
         auto_resume=args.auto_resume,
         verbose_logs=args.verbose_logs,
+        retrieval_config=retrieval_config,
+        retrieval_config_kwargs=retrieval_config_kwargs,
     )
 
     print(
@@ -676,6 +719,8 @@ def _evaluate_domain(payload: dict[str, Any], domain: str) -> dict[str, Any]:
         "results_file": f"data/simulations/{save_to}/results.json",
         "metrics": metrics_dict,
         "pass_metrics": _pass_metrics(results, args.num_trials),
+        "retrieval_config": retrieval_config,
+        "retrieval_config_kwargs": retrieval_config_kwargs,
         "agent_contract": contract_metadata,
         "namespace": analyze_namespace_trajectories(
             results,
@@ -720,10 +765,30 @@ def main() -> None:
         parser.error("--num-trials must be >= 1")
     if args.num_tasks is not None and args.num_tasks < 1:
         parser.error("--num-tasks must be >= 1 when set")
+    if args.max_retries < 0:
+        parser.error("--max-retries must be >= 0")
+    if args.timeout is not None and args.timeout <= 0:
+        parser.error("--timeout must be > 0 when set")
+
+    expected_agent = {
+        OFFICIAL_AGENT_EVAL_MODE: OFFICIAL_AGENT_NAME,
+        LEGACY_AGENT_EVAL_MODE: LEGACY_AGENT_NAME,
+    }[args.agent_eval_mode]
+    if args.agent != expected_agent:
+        parser.error(
+            f"--agent-eval-mode {args.agent_eval_mode} requires "
+            f"--agent {expected_agent}"
+        )
 
     domains = _parse_csv(args.domains)
     if not domains:
         parser.error("--domains must select at least one domain")
+    if BANKING_DOMAIN in domains and not args.retrieval_config:
+        parser.error("--retrieval-config is required for banking_knowledge")
+    retrieval_config_kwargs = _parse_json_object(
+        args.retrieval_config_kwargs_json,
+        name="retrieval config kwargs",
+    ) or None
     try:
         domain_concurrency = _parse_domain_concurrency(
             args.domain_concurrency,
@@ -760,6 +825,21 @@ def main() -> None:
         extra_body_json=args.agent_extra_body_json,
         name="agent",
     )
+    if (
+        args.agent_eval_mode == OFFICIAL_AGENT_EVAL_MODE
+        and args.agent_protocol_profile
+    ):
+        parser.error(
+            "official-native does not allow --agent-protocol-profile"
+        )
+    if (
+        args.agent_eval_mode == OFFICIAL_AGENT_EVAL_MODE
+        and agent_args.get("protocol_profile")
+    ):
+        parser.error(
+            "official-native does not allow protocol_profile in "
+            "--agent-llm-args-json"
+        )
     selected_protocol_profile = args.agent_protocol_profile or agent_args.get(
         "protocol_profile"
     )
@@ -803,6 +883,8 @@ def main() -> None:
         "agent_args": agent_args,
         "user_args": user_args,
         "selected_protocol_profile": selected_protocol_profile,
+        "retrieval_config": args.retrieval_config,
+        "retrieval_config_kwargs": retrieval_config_kwargs,
     }
     print(
         "[tau2-official-eval] "
@@ -857,13 +939,22 @@ def main() -> None:
         "seed": args.seed,
         "max_steps": args.max_steps,
         "max_errors": args.max_errors,
+        "timeout": args.timeout,
         "max_concurrency_per_domain": args.max_concurrency,
         "initial_domain_concurrency": domain_concurrency,
         "global_concurrency": global_concurrency,
         "borrow_completed_domain_slots": args.borrow_completed_domain_slots,
         "concurrency_events": concurrency_events,
         "parallel_domains": use_parallel_domains,
+        "agent_eval_mode": args.agent_eval_mode,
+        "agent": args.agent,
         "agent_protocol_profile": selected_protocol_profile,
+        "retrieval_config": (
+            args.retrieval_config if BANKING_DOMAIN in domains else None
+        ),
+        "retrieval_config_kwargs": (
+            retrieval_config_kwargs if BANKING_DOMAIN in domains else None
+        ),
         "domains": domain_summaries,
     }
     if selected_protocol_signature is not None:

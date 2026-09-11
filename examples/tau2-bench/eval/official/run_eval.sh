@@ -25,6 +25,8 @@ NUM_TASKS="${NUM_TASKS-1}"
 NUM_TRIALS="${NUM_TRIALS:-1}"
 MAX_STEPS="${MAX_STEPS:-200}"
 MAX_ERRORS="${MAX_ERRORS:-10}"
+MAX_RETRIES="${MAX_RETRIES:-3}"
+SIMULATION_TIMEOUT="${SIMULATION_TIMEOUT:-}"
 MAX_CONCURRENCY="${MAX_CONCURRENCY:-1}"
 DOMAIN_CONCURRENCY="${DOMAIN_CONCURRENCY:-}"
 GLOBAL_CONCURRENCY="${GLOBAL_CONCURRENCY:-}"
@@ -34,7 +36,10 @@ SEED="${SEED:-300}"
 AGENT_TEMPERATURE="${AGENT_TEMPERATURE:-0.6}"
 AGENT_TOP_P="${AGENT_TOP_P:-1.0}"
 AGENT_MAX_TOKENS="${AGENT_MAX_TOKENS:-1200}"
+AGENT_EVAL_MODE="${AGENT_EVAL_MODE:-official-native}"
 AGENT_PROTOCOL_PROFILE="${AGENT_PROTOCOL_PROFILE:-}"
+AGENT_SERVED_MODEL_NAME="${AGENT_SERVED_MODEL_NAME:-tau2-agent}"
+AGENT_TOOL_CALL_PARSER="${AGENT_TOOL_CALL_PARSER:-qwen}"
 USER_SGLANG="${USER_SGLANG:-1}"
 USER_MODEL_PATH="${USER_MODEL_PATH:-${SERVICE_AGENT_ROOT}/models/Qwen3-4B-Instruct-2507}"
 USER_MODEL="${USER_MODEL:-$(basename "${USER_MODEL_PATH}")}"
@@ -51,18 +56,47 @@ RUN_STAMP="${RUN_STAMP:-$(date +%m%d_%H%M%S)}"
 SAVE_PREFIX="${SAVE_PREFIX:-tau2_official_${MODEL_NAME}_${RUN_STAMP}}"
 SUMMARY_OUTPUT="${SUMMARY_OUTPUT:-${OFFICIAL_DIR}/outputs/${MODEL_NAME}/summary.json}"
 NAMESPACE_PROBE_OUTPUT="${NAMESPACE_PROBE_OUTPUT:-}"
+RETRIEVAL_CONFIG="${RETRIEVAL_CONFIG:-}"
+RETRIEVAL_CONFIG_KWARGS_JSON="${RETRIEVAL_CONFIG_KWARGS_JSON:-}"
 ROUTER_POLICY="${ROUTER_POLICY:-cache_aware}"
 AGENT_ROUTER_POLICY="${AGENT_ROUTER_POLICY:-${ROUTER_POLICY}}"
 USER_ROUTER_POLICY="${USER_ROUTER_POLICY:-${ROUTER_POLICY}}"
 AGENT_ROUTER_PROMETHEUS_PORT="${AGENT_ROUTER_PROMETHEUS_PORT:-33000}"
 USER_ROUTER_PROMETHEUS_PORT="${USER_ROUTER_PROMETHEUS_PORT:-33001}"
+SGLANG_ENCODER_BOOTSTRAP_PORT_OFFSET="${SGLANG_ENCODER_BOOTSTRAP_PORT_OFFSET:-}"
 
 AGENT_SGLANG_EXTRA_ARGS="${AGENT_SGLANG_EXTRA_ARGS:-${SGLANG_EXTRA_ARGS:-}}"
 # Default the user sglang server to the Qwen tool-call parser so the trained
 # user model's <tool_call> text is decoded into structured tool_calls (needed
 # for telecom TelecomUserTools to execute). Override with USER_SGLANG_EXTRA_ARGS.
-# The agent server is untouched: it uses raw /generate and parses in Python.
 USER_SGLANG_EXTRA_ARGS="${USER_SGLANG_EXTRA_ARGS:---tool-call-parser qwen}"
+
+case "${AGENT_EVAL_MODE}" in
+  official-native)
+    if [[ -n "${AGENT_PROTOCOL_PROFILE}" ]]; then
+      echo "[tau2-official-eval] ERROR: official-native does not allow AGENT_PROTOCOL_PROFILE" >&2
+      exit 1
+    fi
+    AGENT_IMPLEMENTATION="llm_agent"
+    RESOLVED_AGENT_LLM="${AGENT_SERVED_MODEL_NAME}"
+    AGENT_ENDPOINT="http://${HOST}:${PORT}/v1"
+    AGENT_SERVER_MODEL_NAME="${AGENT_SERVED_MODEL_NAME}"
+    if [[ " ${AGENT_SGLANG_EXTRA_ARGS} " != *" --tool-call-parser "* ]]; then
+      AGENT_SGLANG_EXTRA_ARGS="${AGENT_SGLANG_EXTRA_ARGS:+${AGENT_SGLANG_EXTRA_ARGS} }--tool-call-parser ${AGENT_TOOL_CALL_PARSER}"
+    fi
+    ;;
+  legacy-custom)
+    AGENT_IMPLEMENTATION="slime_sglang_agent"
+    RESOLVED_AGENT_LLM="${AGENT_LLM:-${MODEL_PATH}}"
+    AGENT_ENDPOINT="http://${HOST}:${PORT}/generate"
+    AGENT_SERVER_MODEL_NAME=""
+    ;;
+  *)
+    echo "[tau2-official-eval] ERROR: AGENT_EVAL_MODE must be official-native or legacy-custom" >&2
+    exit 1
+    ;;
+esac
+
 SGLANG_ENABLE_DETERMINISTIC_INFERENCE="${SGLANG_ENABLE_DETERMINISTIC_INFERENCE:-0}"
 if [[ "${SGLANG_ENABLE_DETERMINISTIC_INFERENCE}" != "0" && "${SGLANG_ENABLE_DETERMINISTIC_INFERENCE}" != "1" ]]; then
   echo "[tau2-official-eval] ERROR: SGLANG_ENABLE_DETERMINISTIC_INFERENCE must be 0 or 1" >&2
@@ -142,6 +176,12 @@ start_sglang() {
   local log_path="$7"
   local served_model_name="$8"
   shift 8
+  local server_extra_args=("$@")
+  if [[ -n "${SGLANG_ENCODER_BOOTSTRAP_PORT_OFFSET}" ]]; then
+    server_extra_args+=(
+      --encoder-bootstrap-port "$((port + SGLANG_ENCODER_BOOTSTRAP_PORT_OFFSET))"
+    )
+  fi
 
   log "starting sglang ${label} server: ${model_path} (tp=${tp}, cuda=${cuda_devices}) -> ${HOST}:${port}"
   if [[ -n "${served_model_name}" ]]; then
@@ -151,7 +191,7 @@ start_sglang() {
       --served-model-name "${served_model_name}" \
       --host "${HOST}" --port "${port}" \
       --tp "${tp}" --mem-fraction-static "${mem_fraction}" \
-      "$@" \
+      "${server_extra_args[@]}" \
       >"${log_path}" 2>&1 &
   else
     # shellcheck disable=SC2086  # Extra args are intentionally word-split into flags.
@@ -159,7 +199,7 @@ start_sglang() {
       --model-path "${model_path}" \
       --host "${HOST}" --port "${port}" \
       --tp "${tp}" --mem-fraction-static "${mem_fraction}" \
-      "$@" \
+      "${server_extra_args[@]}" \
       >"${log_path}" 2>&1 &
   fi
   local pid=$!
@@ -287,7 +327,7 @@ if [[ -n "${AGENT_REPLICA_CUDA_GROUPS}" ]]; then
     worker_port=$((AGENT_WORKER_PORT_BASE + i))
     worker_log="${OUTPUT_DIR}/sglang_agent_worker${i}_${worker_port}_seed${SEED}_${RUN_STAMP}.log"
     # shellcheck disable=SC2086  # Extra args are intentionally word-split into flags.
-    start_sglang "agent-worker${i}" "${MODEL_PATH}" "${worker_port}" "${TP}" "${MEM_FRACTION}" "${cuda_group}" "${worker_log}" "" "${SGLANG_DETERMINISTIC_ARGS[@]}" ${AGENT_SGLANG_EXTRA_ARGS}
+    start_sglang "agent-worker${i}" "${MODEL_PATH}" "${worker_port}" "${TP}" "${MEM_FRACTION}" "${cuda_group}" "${worker_log}" "${AGENT_SERVER_MODEL_NAME}" "${SGLANG_DETERMINISTIC_ARGS[@]}" ${AGENT_SGLANG_EXTRA_ARGS}
     AGENT_WORKER_LABELS+=("agent-worker${i}")
     AGENT_WORKER_PIDS+=("${SGLANG_STARTED_PID}")
     AGENT_WORKER_PORTS+=("${worker_port}")
@@ -296,7 +336,7 @@ if [[ -n "${AGENT_REPLICA_CUDA_GROUPS}" ]]; then
   done
 else
   # shellcheck disable=SC2086  # Extra args are intentionally word-split into flags.
-  start_sglang agent "${MODEL_PATH}" "${PORT}" "${TP}" "${MEM_FRACTION}" "${AGENT_CUDA_VISIBLE_DEVICES}" "${SGLANG_LOG}" "" "${SGLANG_DETERMINISTIC_ARGS[@]}" ${AGENT_SGLANG_EXTRA_ARGS}
+  start_sglang agent "${MODEL_PATH}" "${PORT}" "${TP}" "${MEM_FRACTION}" "${AGENT_CUDA_VISIBLE_DEVICES}" "${SGLANG_LOG}" "${AGENT_SERVER_MODEL_NAME}" "${SGLANG_DETERMINISTIC_ARGS[@]}" ${AGENT_SGLANG_EXTRA_ARGS}
   AGENT_WORKER_LABELS+=("agent")
   AGENT_WORKER_PIDS+=("${SGLANG_STARTED_PID}")
   AGENT_WORKER_PORTS+=("${PORT}")
@@ -380,12 +420,15 @@ RUN_ARGS=(
   --num-trials "${NUM_TRIALS}"
   --max-steps "${MAX_STEPS}"
   --max-errors "${MAX_ERRORS}"
+  --max-retries "${MAX_RETRIES}"
   --max-concurrency "${MAX_CONCURRENCY}"
   --seed "${SEED}"
   --save-prefix "${SAVE_PREFIX}"
   --summary-output "${SUMMARY_OUTPUT}"
-  --agent-llm "${AGENT_LLM:-${MODEL_PATH}}"
-  --agent-api-base "http://${HOST}:${PORT}/generate"
+  --agent-eval-mode "${AGENT_EVAL_MODE}"
+  --agent "${AGENT_IMPLEMENTATION}"
+  --agent-llm "${RESOLVED_AGENT_LLM}"
+  --agent-api-base "${AGENT_ENDPOINT}"
   --agent-api-key "${AGENT_API_KEY:-dummy-key-for-local-server}"
   --agent-temperature "${AGENT_TEMPERATURE}"
   --agent-top-p "${AGENT_TOP_P}"
@@ -395,6 +438,10 @@ RUN_ARGS=(
   --user-api-key "${USER_API_KEY}"
   --user-temperature "${USER_TEMPERATURE}"
 )
+
+if [[ -n "${SIMULATION_TIMEOUT}" ]]; then
+  RUN_ARGS+=(--timeout "${SIMULATION_TIMEOUT}")
+fi
 
 if [[ -n "${NUM_TASKS}" ]]; then
   RUN_ARGS+=(--num-tasks "${NUM_TASKS}")
@@ -423,6 +470,12 @@ fi
 if [[ -n "${USER_EXTRA_BODY_JSON:-}" ]]; then
   RUN_ARGS+=(--user-extra-body-json "${USER_EXTRA_BODY_JSON}")
 fi
+if [[ -n "${RETRIEVAL_CONFIG}" ]]; then
+  RUN_ARGS+=(--retrieval-config "${RETRIEVAL_CONFIG}")
+fi
+if [[ -n "${RETRIEVAL_CONFIG_KWARGS_JSON}" ]]; then
+  RUN_ARGS+=(--retrieval-config-kwargs-json "${RETRIEVAL_CONFIG_KWARGS_JSON}")
+fi
 if [[ "${AUTO_RESUME:-0}" != "0" ]]; then
   RUN_ARGS+=(--auto-resume)
 fi
@@ -442,7 +495,7 @@ if [[ "${BORROW_COMPLETED_DOMAIN_SLOTS}" == "1" ]]; then
   RUN_ARGS+=(--borrow-completed-domain-slots)
 fi
 
-log "running official eval: domains=${DOMAINS} split=${TASK_SPLIT} trials=${NUM_TRIALS} num_tasks=${NUM_TASKS:-all}"
+log "running official eval: mode=${AGENT_EVAL_MODE} agent=${AGENT_IMPLEMENTATION} domains=${DOMAINS} split=${TASK_SPLIT} trials=${NUM_TRIALS} num_tasks=${NUM_TASKS:-all} max_steps=${MAX_STEPS} timeout=${SIMULATION_TIMEOUT:-none} retrieval_config=${RETRIEVAL_CONFIG:-none}"
 eval_started_epoch="$(date +%s)"
 log "stage=eval_process_start epoch=${eval_started_epoch}"
 python3 "${OFFICIAL_DIR}/run_eval.py" "${RUN_ARGS[@]}"

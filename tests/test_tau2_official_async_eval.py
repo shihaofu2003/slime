@@ -1,7 +1,10 @@
-import sys
+import contextlib
 import importlib.util
+import io
+import json
 import os
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -29,6 +32,610 @@ from tau2_async_eval_fixture import (  # noqa: E402
 
 
 class Tau2OfficialAsyncEvalTest(unittest.TestCase):
+    def _capture_wrapper_environment(
+        self,
+        wrapper,
+        *,
+        arguments=None,
+        overrides=None,
+    ):
+        if not wrapper.exists():
+            self.fail(f"missing evaluation wrapper: {wrapper}")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            capture_path = tmp_path / "environment.txt"
+            bash_stub = tmp_path / "bash"
+            bash_stub.write_text(
+                "#!/bin/sh\nenv > \"${ENV_CAPTURE_PATH}\"\n",
+                encoding="utf-8",
+            )
+            bash_stub.chmod(0o755)
+            environment = dict(os.environ)
+            for key in (
+                "AGENT_EVAL_MODE",
+                "AGENT_EXTRA_BODY_JSON",
+                "AGENT_MAX_TOKENS",
+                "AGENT_TOOL_CALL_PARSER",
+                "DOMAIN_CONCURRENCY",
+                "DOMAINS",
+                "EVAL_LABEL",
+                "EXPERIMENT_DIR",
+                "MODEL_NAME",
+                "MODEL_PATH",
+                "NUM_TASKS",
+                "NUM_TRIALS",
+                "RETRIEVAL_CONFIG",
+            ):
+                environment.pop(key, None)
+            environment.update(
+                {
+                    "PATH": f"{tmp_path}:{environment['PATH']}",
+                    "ENV_CAPTURE_PATH": str(capture_path),
+                    "RUN_STAMP": "wrapper-test",
+                    **(overrides or {}),
+                }
+            )
+
+            subprocess.run(
+                ["/bin/bash", str(wrapper), *(arguments or [])],
+                cwd=OFFICIAL_EVAL_DIR.parents[3],
+                env=environment,
+                check=True,
+            )
+
+            return dict(
+                line.split("=", 1)
+                for line in capture_path.read_text(encoding="utf-8").splitlines()
+                if "=" in line
+            )
+
+    def _run_eval_shell(self, *, overrides=None):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            bin_path = tmp_path / "bin"
+            bin_path.mkdir()
+            capture_path = tmp_path / "python-invocations.tsv"
+            capture_path.touch()
+            model_path = tmp_path / "model"
+            model_path.mkdir()
+            python_stub = bin_path / "python3"
+            python_stub.write_text(
+                """#!/usr/bin/env bash
+printf '%s' "${1:-}" >> "${PYTHON_CAPTURE_PATH}"
+for argument in "${@:2}"; do
+  printf '\t%s' "${argument}" >> "${PYTHON_CAPTURE_PATH}"
+done
+printf '\n' >> "${PYTHON_CAPTURE_PATH}"
+if [[ "${1:-}" == "-m" && "${2:-}" == "sglang.launch_server" ]]; then
+  exec /bin/sleep 600
+fi
+exit 0
+""",
+                encoding="utf-8",
+            )
+            python_stub.chmod(0o755)
+
+            environment = dict(os.environ)
+            for key in (
+                "AGENT_EVAL_MODE",
+                "AGENT_LLM",
+                "AGENT_PROTOCOL_PROFILE",
+                "AGENT_REPLICA_CUDA_GROUPS",
+                "AGENT_SERVED_MODEL_NAME",
+                "AGENT_SGLANG_EXTRA_ARGS",
+                "AGENT_TOOL_CALL_PARSER",
+                "SGLANG_EXTRA_ARGS",
+                "USER_REPLICA_CUDA_GROUPS",
+            ):
+                environment.pop(key, None)
+            environment.update(
+                {
+                    "PATH": f"{bin_path}:{environment['PATH']}",
+                    "PYTHON_CAPTURE_PATH": str(capture_path),
+                    "SERVICE_AGENT_ROOT": str(OFFICIAL_EVAL_DIR.parents[4]),
+                    "PROJECT_ROOT": str(OFFICIAL_EVAL_DIR.parents[3]),
+                    "MODEL_PATH": str(model_path),
+                    "MODEL_NAME": "test-agent",
+                    "SUMMARY_OUTPUT": str(tmp_path / "summary.json"),
+                    "RUN_STAMP": "shell-test",
+                    "DOMAINS": "airline",
+                    "NUM_TASKS": "1",
+                    "NUM_TRIALS": "1",
+                    "USER_SGLANG": "0",
+                    "USER_API_BASE": "http://user.test/v1",
+                    "USER_API_KEY": "user-key",
+                    "SGLANG_CLEANUP_TIMEOUT_SECONDS": "1",
+                    **(overrides or {}),
+                }
+            )
+            completed = subprocess.run(
+                ["/bin/bash", str(OFFICIAL_EVAL_DIR / "run_eval.sh")],
+                cwd=OFFICIAL_EVAL_DIR.parents[3],
+                env=environment,
+                text=True,
+                capture_output=True,
+                timeout=10,
+            )
+            invocations = [
+                line.split("\t")
+                for line in capture_path.read_text(encoding="utf-8").splitlines()
+            ]
+            return completed, invocations
+
+    @staticmethod
+    def _empty_eval_jobs():
+        domain_summary = {
+            "pass_metrics": {
+                "tasks": 0,
+                "simulations": 0,
+                "pass_at_1": 0.0,
+                "pass_at_4_any": 0.0,
+                "pass_power_4": 0.0,
+            },
+            "metrics": {},
+            "single_call": {},
+            "timing": {
+                "wall_seconds": 0.0,
+                "trajectory_seconds": 0.0,
+                "other": {"seconds": 0.0},
+            },
+        }
+        return {
+            "airline": {
+                "summary": domain_summary,
+                "timing_samples": {"agent": [], "user": []},
+            }
+        }
+
+    def _run_main_and_read_summary(self, *extra_args):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summary_path = Path(tmp_dir) / "summary.json"
+            argv = [
+                "run_eval.py",
+                "--domains",
+                "airline",
+                "--save-prefix",
+                "test",
+                "--summary-output",
+                str(summary_path),
+                "--agent-llm",
+                "test-agent",
+                "--user-llm",
+                "test-user",
+                *extra_args,
+            ]
+            with mock.patch.object(sys, "argv", argv):
+                with mock.patch.object(
+                    run_eval,
+                    "_run_domain_jobs",
+                    return_value=(self._empty_eval_jobs(), []),
+                ):
+                    with mock.patch("builtins.print"):
+                        run_eval.main()
+            return json.loads(summary_path.read_text(encoding="utf-8"))
+
+    def test_official_native_is_the_default_agent_and_uses_upstream_prompt(self):
+        from tau2.agent.llm_agent import AGENT_INSTRUCTION, LLMAgent, SYSTEM_PROMPT
+
+        args = run_eval._build_parser().parse_args(
+            [
+                "--save-prefix",
+                "test",
+                "--agent-llm",
+                "test-agent",
+                "--user-llm",
+                "test-user",
+            ]
+        )
+
+        self.assertEqual(args.agent_eval_mode, "official-native")
+        self.assertEqual(args.agent, "llm_agent")
+        domain_policy = "Only make changes after the user confirms."
+        agent = LLMAgent(
+            tools=[],
+            domain_policy=domain_policy,
+            llm="openai/test-agent",
+        )
+        self.assertEqual(
+            agent.system_prompt,
+            SYSTEM_PROMPT.format(
+                agent_instruction=AGENT_INSTRUCTION,
+                domain_policy=domain_policy,
+            ),
+        )
+
+    def test_official_generate_sends_native_tools_with_auto_choice(self):
+        from tau2.data_model.message import SystemMessage, UserMessage
+        from tau2.environment.tool import as_tool
+        from tau2.utils import llm_utils
+
+        def lookup_order(order_id: str) -> str:
+            """Look up an order by identifier."""
+            return order_id
+
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="The order is ready.",
+                        tool_calls=None,
+                    ),
+                )
+            ],
+            to_dict=lambda: {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": "The order is ready.",
+                            "tool_calls": None,
+                        },
+                    }
+                ]
+            },
+        )
+        tool = as_tool(lookup_order)
+        messages = [
+            SystemMessage(role="system", content="Follow policy."),
+            UserMessage(role="user", content="Where is order A-1?"),
+        ]
+
+        with mock.patch.object(
+            llm_utils,
+            "completion",
+            return_value=response,
+        ) as completion:
+            with mock.patch.object(llm_utils, "get_response_cost", return_value=0.0):
+                with mock.patch.object(
+                    llm_utils,
+                    "get_response_usage",
+                    return_value={},
+                ):
+                    with mock.patch.object(llm_utils, "_write_llm_log"):
+                        llm_utils.generate(
+                            model="openai/test-agent",
+                            messages=messages,
+                            tools=[tool],
+                        )
+
+        request = completion.call_args.kwargs
+        self.assertEqual(request["tool_choice"], "auto")
+        self.assertEqual(len(request["tools"]), 1)
+        self.assertEqual(request["tools"][0]["type"], "function")
+        self.assertEqual(
+            request["tools"][0]["function"]["name"],
+            "lookup_order",
+        )
+        self.assertNotIn("tools", request["messages"][0])
+
+    def test_official_generate_parses_multiple_assistant_tool_calls(self):
+        from tau2.data_model.message import SystemMessage, UserMessage
+        from tau2.utils import llm_utils
+
+        raw_tool_calls = [
+            SimpleNamespace(
+                id="call_order",
+                function=SimpleNamespace(
+                    name="lookup_order",
+                    arguments='{"order_id": "A-1"}',
+                ),
+            ),
+            SimpleNamespace(
+                id="call_customer",
+                function=SimpleNamespace(
+                    name="lookup_customer",
+                    arguments='{"customer_id": "C-2"}',
+                ),
+            ),
+        ]
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="tool_calls",
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=None,
+                        tool_calls=raw_tool_calls,
+                    ),
+                )
+            ],
+            to_dict=lambda: {
+                "choices": [
+                    {
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                        },
+                    }
+                ]
+            },
+        )
+        messages = [
+            SystemMessage(role="system", content="Follow policy."),
+            UserMessage(role="user", content="Check both records."),
+        ]
+
+        with mock.patch.object(llm_utils, "completion", return_value=response):
+            with mock.patch.object(llm_utils, "get_response_cost", return_value=0.0):
+                with mock.patch.object(
+                    llm_utils,
+                    "get_response_usage",
+                    return_value={},
+                ):
+                    with mock.patch.object(llm_utils, "_write_llm_log"):
+                        message = llm_utils.generate(
+                            model="openai/test-agent",
+                            messages=messages,
+                        )
+
+        self.assertEqual(
+            [tool_call.model_dump() for tool_call in message.tool_calls],
+            [
+                {
+                    "id": "call_order",
+                    "name": "lookup_order",
+                    "arguments": {"order_id": "A-1"},
+                    "requestor": "assistant",
+                },
+                {
+                    "id": "call_customer",
+                    "name": "lookup_customer",
+                    "arguments": {"customer_id": "C-2"},
+                    "requestor": "assistant",
+                },
+            ],
+        )
+
+    def test_official_agent_history_keeps_assistant_calls_and_all_tool_results(self):
+        import tau2.agent.llm_agent as llm_agent_module
+        from tau2.data_model.message import (
+            AssistantMessage,
+            MultiToolMessage,
+            ToolCall,
+            ToolMessage,
+            UserMessage,
+        )
+        from tau2.utils.llm_utils import to_litellm_messages
+
+        first_response = AssistantMessage(
+            role="assistant",
+            tool_calls=[
+                ToolCall(
+                    id="call_order",
+                    name="lookup_order",
+                    arguments={"order_id": "A-1"},
+                ),
+                ToolCall(
+                    id="call_customer",
+                    name="lookup_customer",
+                    arguments={"customer_id": "C-2"},
+                ),
+            ],
+        )
+        responses = iter(
+            [
+                first_response,
+                AssistantMessage(role="assistant", content="Both records match."),
+            ]
+        )
+        captured_histories = []
+
+        def fake_generate(**kwargs):
+            captured_histories.append(list(kwargs["messages"]))
+            return next(responses)
+
+        agent = llm_agent_module.LLMAgent(
+            tools=[],
+            domain_policy="Follow policy.",
+            llm="openai/test-agent",
+        )
+        state = agent.get_init_state()
+        with mock.patch.object(
+            llm_agent_module,
+            "generate",
+            side_effect=fake_generate,
+        ):
+            _, state = agent.generate_next_message(
+                UserMessage(role="user", content="Check both records."),
+                state,
+            )
+            agent.generate_next_message(
+                MultiToolMessage(
+                    role="tool",
+                    tool_messages=[
+                        ToolMessage(
+                            id="call_order",
+                            role="tool",
+                            content="order-result",
+                        ),
+                        ToolMessage(
+                            id="call_customer",
+                            role="tool",
+                            content="customer-result",
+                        ),
+                    ],
+                ),
+                state,
+            )
+
+        history = to_litellm_messages(captured_histories[1])
+        self.assertEqual(
+            [message["role"] for message in history],
+            ["system", "user", "assistant", "tool", "tool"],
+        )
+        self.assertEqual(
+            [call["id"] for call in history[2]["tool_calls"]],
+            ["call_order", "call_customer"],
+        )
+        self.assertEqual(history[3]["tool_call_id"], "call_order")
+        self.assertEqual(history[3]["content"], "order-result")
+        self.assertEqual(history[4]["tool_call_id"], "call_customer")
+        self.assertEqual(history[4]["content"], "customer-result")
+
+    def test_eval_shell_maps_official_native_to_openai_chat_completions(self):
+        completed, invocations = self._run_eval_shell()
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        launch = next(
+            invocation
+            for invocation in invocations
+            if invocation[:2] == ["-m", "sglang.launch_server"]
+        )
+        self.assertEqual(
+            launch[launch.index("--served-model-name") + 1],
+            "tau2-agent",
+        )
+        self.assertEqual(
+            launch[launch.index("--tool-call-parser") + 1],
+            "qwen",
+        )
+        evaluation = next(
+            invocation
+            for invocation in invocations
+            if invocation and invocation[0].endswith("/run_eval.py")
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent-eval-mode") + 1],
+            "official-native",
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent") + 1],
+            "llm_agent",
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent-llm") + 1],
+            "tau2-agent",
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent-api-base") + 1],
+            "http://127.0.0.1:30000/v1",
+        )
+
+    def test_eval_shell_keeps_legacy_custom_generate_transport(self):
+        completed, invocations = self._run_eval_shell(
+            overrides={
+                "AGENT_EVAL_MODE": "legacy-custom",
+                "AGENT_PROTOCOL_PROFILE": "current-single",
+            }
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        launch = next(
+            invocation
+            for invocation in invocations
+            if invocation[:2] == ["-m", "sglang.launch_server"]
+        )
+        self.assertNotIn("--served-model-name", launch)
+        evaluation = next(
+            invocation
+            for invocation in invocations
+            if invocation and invocation[0].endswith("/run_eval.py")
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent-eval-mode") + 1],
+            "legacy-custom",
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent") + 1],
+            "slime_sglang_agent",
+        )
+        self.assertEqual(
+            evaluation[evaluation.index("--agent-api-base") + 1],
+            "http://127.0.0.1:30000/generate",
+        )
+
+    def test_official_mode_rejects_custom_protocol_profile(self):
+        argv = [
+            "run_eval.py",
+            "--domains",
+            "airline",
+            "--save-prefix",
+            "test",
+            "--agent-llm",
+            "test-agent",
+            "--user-llm",
+            "test-user",
+            "--agent-protocol-profile",
+            "current-single",
+        ]
+        stderr = io.StringIO()
+
+        with mock.patch.object(sys, "argv", argv):
+            with mock.patch.object(
+                run_eval,
+                "_run_domain_jobs",
+                return_value=(self._empty_eval_jobs(), []),
+            ):
+                with contextlib.redirect_stderr(stderr):
+                    with self.assertRaises(SystemExit) as raised:
+                        run_eval.main()
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn(
+            "official-native does not allow --agent-protocol-profile",
+            stderr.getvalue(),
+        )
+
+    def test_summary_records_official_native_agent_semantics(self):
+        summary = self._run_main_and_read_summary()
+
+        self.assertEqual(summary["agent_eval_mode"], "official-native")
+        self.assertEqual(summary["agent"], "llm_agent")
+        self.assertIsNone(summary["agent_protocol_profile"])
+
+    def test_summary_records_legacy_custom_agent_semantics(self):
+        summary = self._run_main_and_read_summary(
+            "--agent-eval-mode",
+            "legacy-custom",
+            "--agent",
+            "slime_sglang_agent",
+            "--agent-protocol-profile",
+            "strict-single-v1",
+        )
+
+        self.assertEqual(summary["agent_eval_mode"], "legacy-custom")
+        self.assertEqual(summary["agent"], "slime_sglang_agent")
+        self.assertEqual(summary["agent_protocol_profile"], "strict-single-v1")
+
+    def test_historical_custom_agent_wrappers_pin_legacy_mode(self):
+        wrappers = [
+            *sorted(
+                (OFFICIAL_EVAL_DIR / "models").glob(
+                    "run_full_tau2_agent*.sh"
+                )
+            ),
+            *sorted(
+                (OFFICIAL_EVAL_DIR / "models").glob("run_full_this_sft*.sh")
+            ),
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3-4b-tau2-grpo-v1.sh",
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3-4b-tau2-grpo-v1_user_sft.sh",
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3-4b-instruct-2507_dependency_safe_multi_user_stop_parser.sh",
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3.5-4b_nonthinking_single_call_user_stop_parser.sh",
+        ]
+
+        for wrapper in wrappers:
+            with self.subTest(wrapper=wrapper.name):
+                self.assertIn(
+                    'export AGENT_EVAL_MODE="legacy-custom"',
+                    wrapper.read_text(encoding="utf-8"),
+                )
+
+    def test_qwen35_official_wrapper_selects_qwen3_coder_parser(self):
+        wrapper = OFFICIAL_EVAL_DIR / "models/run_full_qwen3.5-4b.sh"
+
+        captured = self._capture_wrapper_environment(wrapper)
+
+        self.assertEqual(captured["AGENT_TOOL_CALL_PARSER"], "qwen3_coder")
+
     def test_async_wrapper_exports_elastic_two_agent_three_user_topology(self):
         wrapper = (
             OFFICIAL_EVAL_DIR
@@ -78,6 +685,146 @@ class Tau2OfficialAsyncEvalTest(unittest.TestCase):
         self.assertEqual(captured["BORROW_COMPLETED_DOMAIN_SLOTS"], "1")
         self.assertEqual(captured["AGENT_ROUTER_POLICY"], "cache_aware")
         self.assertEqual(captured["USER_ROUTER_POLICY"], "round_robin")
+
+    def test_qwen36_user_uses_qwen3_coder_tool_call_parser(self):
+        wrapper = (
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3_4b_qwen36_user_async_timed.sh"
+        )
+
+        captured = self._capture_wrapper_environment(wrapper)
+
+        user_args = captured["USER_SGLANG_EXTRA_ARGS"].split()
+        parser_index = user_args.index("--tool-call-parser")
+        self.assertEqual(user_args[parser_index + 1], "qwen3_coder")
+
+    def test_qwen36_user_is_nonthinking_and_text_only(self):
+        wrapper = (
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3_4b_qwen36_user_async_timed.sh"
+        )
+
+        captured = self._capture_wrapper_environment(wrapper)
+
+        self.assertEqual(
+            captured["USER_EXTRA_BODY_JSON"],
+            '{"chat_template_kwargs":{"enable_thinking":false}}',
+        )
+        self.assertIn(
+            "--language-only",
+            captured["USER_SGLANG_EXTRA_ARGS"].split(),
+        )
+
+    def test_async_wrapper_preserves_explicit_domain_overrides(self):
+        wrapper = (
+            OFFICIAL_EVAL_DIR
+            / "models/run_full_qwen3_4b_qwen36_user_async_timed.sh"
+        )
+        captured = self._capture_wrapper_environment(
+            wrapper,
+            overrides={
+                "AGENT_MAX_TOKENS": "8192",
+                "DOMAINS": "airline,retail,telecom,banking_knowledge",
+                "DOMAIN_CONCURRENCY": (
+                    "airline:1,retail:2,telecom:2,banking_knowledge:4"
+                ),
+                "EXPERIMENT_DIR": "/tmp/four-domain-results",
+                "MODEL_NAME": "Qwen3.5-4B-test",
+                "MODEL_PATH": "/tmp/Qwen3.5-4B",
+            },
+        )
+
+        self.assertEqual(
+            captured["DOMAINS"],
+            "airline,retail,telecom,banking_knowledge",
+        )
+        self.assertEqual(
+            captured["DOMAIN_CONCURRENCY"],
+            "airline:1,retail:2,telecom:2,banking_knowledge:4",
+        )
+        self.assertEqual(captured["EXPERIMENT_DIR"], "/tmp/four-domain-results")
+        self.assertEqual(captured["MODEL_PATH"], "/tmp/Qwen3.5-4B")
+        self.assertEqual(captured["MODEL_NAME"], "Qwen3.5-4B-test")
+        self.assertEqual(captured["AGENT_MAX_TOKENS"], "8192")
+
+    def test_four_domain_wrapper_exports_smoke_budget(self):
+        wrapper = (
+            OFFICIAL_EVAL_DIR
+            / "models/run_qwen3_4b_qwen36_user_async_four_domain.sh"
+        )
+        captured = self._capture_wrapper_environment(
+            wrapper,
+            arguments=["smoke"],
+        )
+
+        self.assertEqual(
+            captured["DOMAINS"],
+            "airline,retail,telecom,banking_knowledge",
+        )
+        self.assertEqual(
+            captured["DOMAIN_CONCURRENCY"],
+            "airline:1,retail:2,telecom:2,banking_knowledge:4",
+        )
+        self.assertEqual(captured["GLOBAL_CONCURRENCY"], "9")
+        self.assertEqual(captured["RETRIEVAL_CONFIG"], "bm25")
+        self.assertEqual(captured["NUM_TASKS"], "3")
+        self.assertEqual(captured["NUM_TRIALS"], "1")
+        self.assertEqual(captured["EVAL_LABEL"], "four-domain-smoke-bm25")
+
+    def test_four_domain_wrapper_exports_full_budget(self):
+        wrapper = (
+            OFFICIAL_EVAL_DIR
+            / "models/run_qwen3_4b_qwen36_user_async_four_domain.sh"
+        )
+        captured = self._capture_wrapper_environment(
+            wrapper,
+            arguments=["full"],
+        )
+
+        self.assertEqual(captured["NUM_TASKS"], "")
+        self.assertEqual(captured["NUM_TRIALS"], "4")
+        self.assertEqual(captured["EVAL_LABEL"], "four-domain-full-bm25")
+
+    def test_qwen35_four_domain_wrapper_selects_agent_thinking_mode(self):
+        wrapper = (
+            OFFICIAL_EVAL_DIR
+            / "models/run_qwen3_5_4b_qwen36_user_async_four_domain.sh"
+        )
+        model_path = OFFICIAL_EVAL_DIR.parents[4] / "models/Qwen3.5-4B"
+
+        for mode, enable_thinking in (
+            ("thinking", True),
+            ("nonthinking", False),
+        ):
+            with self.subTest(mode=mode):
+                captured = self._capture_wrapper_environment(
+                    wrapper,
+                    arguments=[mode],
+                )
+
+                self.assertEqual(captured["MODEL_PATH"], str(model_path))
+                self.assertEqual(
+                    captured["MODEL_NAME"],
+                    f"Qwen3.5-4B-{mode}-qwen36-user-async",
+                )
+                self.assertEqual(captured["AGENT_EVAL_MODE"], "official-native")
+                self.assertEqual(
+                    captured["AGENT_TOOL_CALL_PARSER"],
+                    "qwen3_coder",
+                )
+                self.assertEqual(captured["AGENT_MAX_TOKENS"], "8192")
+                self.assertEqual(
+                    json.loads(captured["AGENT_EXTRA_BODY_JSON"]),
+                    {
+                        "chat_template_kwargs": {
+                            "enable_thinking": enable_thinking,
+                        }
+                    },
+                )
+                self.assertEqual(
+                    captured["EVAL_LABEL"],
+                    f"four-domain-full-bm25-{mode}",
+                )
 
     def test_tau2_batch_runner_respects_external_slot_semaphore(self):
         import tau2.runner.batch as batch_runner
@@ -300,6 +1047,207 @@ class Tau2OfficialAsyncEvalTest(unittest.TestCase):
         )
         self.assertEqual(configured.global_concurrency, 9)
         self.assertTrue(configured.borrow_completed_domain_slots)
+
+    def test_banking_retrieval_configuration_is_explicit(self):
+        parser = run_eval._build_parser()
+        required = [
+            "--save-prefix",
+            "test",
+            "--agent-llm",
+            "agent",
+            "--user-llm",
+            "user",
+        ]
+
+        default_args = parser.parse_args(required)
+        self.assertTrue(hasattr(default_args, "retrieval_config"))
+        self.assertIsNone(default_args.retrieval_config)
+        self.assertIsNone(default_args.retrieval_config_kwargs_json)
+
+        configured = parser.parse_args(
+            [
+                *required,
+                "--domains",
+                "airline,retail,telecom,banking_knowledge",
+                "--retrieval-config",
+                "bm25",
+                "--retrieval-config-kwargs-json",
+                '{"top_k": 8}',
+            ]
+        )
+        self.assertEqual(configured.retrieval_config, "bm25")
+        self.assertEqual(
+            configured.retrieval_config_kwargs_json,
+            '{"top_k": 8}',
+        )
+
+    def test_banking_domain_requires_retrieval_config_before_evaluation(self):
+        argv = [
+            "run_eval.py",
+            "--domains",
+            "banking_knowledge",
+            "--save-prefix",
+            "test",
+            "--agent-llm",
+            "agent",
+            "--user-llm",
+            "user",
+        ]
+        domain_summary = {
+            "pass_metrics": {
+                "tasks": 0,
+                "simulations": 0,
+                "pass_at_1": 0.0,
+                "pass_at_4_any": 0.0,
+                "pass_power_4": 0.0,
+            },
+            "metrics": {},
+            "single_call": {},
+            "timing": {
+                "wall_seconds": 0.0,
+                "trajectory_seconds": 0.0,
+                "other": {"seconds": 0.0},
+            },
+        }
+        jobs = {
+            "banking_knowledge": {
+                "summary": domain_summary,
+                "timing_samples": {"agent": [], "user": []},
+            }
+        }
+
+        with mock.patch.object(sys, "argv", argv):
+            with mock.patch.object(
+                run_eval,
+                "_run_domain_jobs",
+                return_value=(jobs, []),
+            ):
+                with self.assertRaises(SystemExit) as raised:
+                    run_eval.main()
+
+        self.assertEqual(raised.exception.code, 2)
+
+    def test_banking_retrieval_config_reaches_environment_and_run_config(self):
+        captured_environment_kwargs = {}
+        captured_run_config = {}
+
+        class FakeEnvironment:
+            def get_user_tools(self):
+                return []
+
+        class FakeRegistry:
+            def get_env_constructor(self, domain):
+                self.domain = domain
+
+                def constructor(**kwargs):
+                    captured_environment_kwargs.update(kwargs)
+                    return FakeEnvironment()
+
+                return constructor
+
+        def fake_text_run_config(**kwargs):
+            captured_run_config.update(kwargs)
+            return SimpleNamespace()
+
+        def fake_run_domain(config):
+            return {"simulations": []}
+
+        sglang_agent = ModuleType("sglang_agent")
+        register_slime_sglang_agent = mock.Mock()
+        sglang_agent.register_slime_sglang_agent = register_slime_sglang_agent
+        timed_user = ModuleType("timed_user")
+        timed_user.register_timed_user_simulator = lambda: None
+        tau2 = ModuleType("tau2")
+        tau2.__path__ = []
+        tau2_data_model = ModuleType("tau2.data_model")
+        tau2_data_model.__path__ = []
+        tau2_simulation = ModuleType("tau2.data_model.simulation")
+        tau2_simulation.TextRunConfig = fake_text_run_config
+        tau2_metrics = ModuleType("tau2.metrics")
+        tau2_metrics.__path__ = []
+        tau2_agent_metrics = ModuleType("tau2.metrics.agent_metrics")
+        tau2_agent_metrics.compute_metrics = lambda results: {}
+        tau2_registry = ModuleType("tau2.registry")
+        tau2_registry.registry = FakeRegistry()
+        tau2_runner = ModuleType("tau2.runner")
+        tau2_runner.run_domain = fake_run_domain
+        transformers = ModuleType("transformers")
+        transformers.AutoTokenizer = object
+
+        parser = run_eval._build_parser()
+        args = parser.parse_args(
+            [
+                "--domains",
+                "banking_knowledge",
+                "--save-prefix",
+                "test",
+                "--agent-llm",
+                "agent",
+                "--user-llm",
+                "user",
+                "--retrieval-config",
+                "bm25",
+                "--retrieval-config-kwargs-json",
+                '{"top_k": 8}',
+            ]
+        )
+        payload = {
+            "args": vars(args),
+            "agent_args": {},
+            "user_args": {},
+            "selected_protocol_profile": None,
+            "retrieval_config": "bm25",
+            "retrieval_config_kwargs": {"top_k": 8},
+        }
+
+        with mock.patch.dict(
+            sys.modules,
+            {
+                "sglang_agent": sglang_agent,
+                "timed_user": timed_user,
+                "tau2": tau2,
+                "tau2.data_model": tau2_data_model,
+                "tau2.data_model.simulation": tau2_simulation,
+                "tau2.metrics": tau2_metrics,
+                "tau2.metrics.agent_metrics": tau2_agent_metrics,
+                "tau2.registry": tau2_registry,
+                "tau2.runner": tau2_runner,
+                "transformers": transformers,
+            },
+        ):
+            with mock.patch.object(
+                run_eval,
+                "analyze_namespace_trajectories",
+                return_value={},
+            ):
+                with mock.patch.object(
+                    run_eval,
+                    "analyze_single_call_attempts",
+                    return_value={},
+                ):
+                    result = run_eval._evaluate_domain(
+                        payload,
+                        "banking_knowledge",
+                    )
+
+        self.assertEqual(
+            captured_environment_kwargs,
+            {
+                "retrieval_variant": "bm25",
+                "retrieval_kwargs": {"top_k": 8},
+            },
+        )
+        self.assertEqual(captured_run_config["retrieval_config"], "bm25")
+        self.assertEqual(
+            captured_run_config["retrieval_config_kwargs"],
+            {"top_k": 8},
+        )
+        self.assertEqual(result["summary"]["retrieval_config"], "bm25")
+        self.assertEqual(
+            result["summary"]["retrieval_config_kwargs"],
+            {"top_k": 8},
+        )
+        register_slime_sglang_agent.assert_not_called()
 
     def test_explicit_zero_global_concurrency_is_rejected(self):
         argv = [
@@ -546,6 +1494,39 @@ class Tau2OfficialAsyncEvalTest(unittest.TestCase):
                 },
             },
         )
+
+    def test_timing_summary_reads_official_agent_generation_time(self):
+        results = {
+            "simulations": [
+                {
+                    "duration": 5.0,
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "generation_time_seconds": 1.25,
+                            "raw_data": {"provider": "litellm"},
+                        },
+                        {
+                            "role": "user",
+                            "generation_time_seconds": 9.0,
+                            "raw_data": {
+                                "tau2_eval_timing": {
+                                    "participant": "user",
+                                    "elapsed_seconds": 2.0,
+                                }
+                            },
+                        },
+                    ],
+                }
+            ]
+        }
+
+        summary, samples = run_eval._timing_summary(results, wall_seconds=5.0)
+
+        self.assertEqual(samples, {"agent": [1.25], "user": [2.0]})
+        self.assertEqual(summary["agent"]["seconds"], 1.25)
+        self.assertEqual(summary["user"]["seconds"], 2.0)
+        self.assertEqual(summary["other"]["seconds"], 1.75)
 
     def test_combined_timing_recomputes_percentiles_from_all_domains(self):
         if not hasattr(run_eval, "_combined_timing_summary"):

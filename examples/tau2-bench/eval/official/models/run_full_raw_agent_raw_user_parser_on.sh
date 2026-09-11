@@ -30,13 +30,16 @@ case "${MODEL_KIND}" in
   qwen35-thinking)
     export MODEL_PATH="${SERVICE_AGENT_ROOT}/models/Qwen3.5-4B"
     export MODEL_NAME="Qwen3.5-4B-thinking-raw-agent-raw-user-parser-on"
+    export AGENT_TOOL_CALL_PARSER="qwen3_coder"
     export AGENT_MAX_TOKENS="8192"
     ;;
   qwen35-nonthinking)
     export MODEL_PATH="${SERVICE_AGENT_ROOT}/models/Qwen3.5-4B"
     export MODEL_NAME="Qwen3.5-4B-nonthinking-raw-agent-raw-user-parser-on"
+    export AGENT_TOOL_CALL_PARSER="qwen3_coder"
     export AGENT_MAX_TOKENS="8192"
     export AGENT_PROTOCOL_PROFILE="current-single"
+    export AGENT_EVAL_MODE="legacy-custom"
     export AGENT_LLM_ARGS_JSON='{"enable_thinking":false}'
     ;;
 esac

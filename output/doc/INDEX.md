@@ -2,6 +2,98 @@
 
 One entry per experiment: name, purpose, link to its README.
 
+- [tau2-banking-simplified-full-sft](../experiments/tau2-banking-simplified-full-sft/README.md) —
+  raw-model SFT on all 5,672 simplified Banking rows followed by Banking evaluation.
+
+- [tau2-banking-simplified-sft-test](../experiments/tau2-banking-simplified-sft-test/README.md) —
+  raw-model SFT on completed408 simplified Banking data; matched Banking length and latency evaluation.
+
+- [tau2-banking-simplify-concurrency-v1](../experiments/tau2-banking-simplify-concurrency-v1/README.md) —
+  matched 8-GPU concurrency 1/2/4 benchmark before changing the live Banking simplification job.
+
+- [tau2-banking-simplify-qwen38-v1](../experiments/tau2-banking-simplify-qwen38-v1/README.md) —
+  deletion-only Qwen3.8-27B simplification of all Banking expert trajectories,
+  with independent semantic review, sequential replay, and complete non-thinking SFT export.
+  Pilot complete (64/75 accepted); full job 17371 stopped for concurrency-four
+  continuation 17467, preserving completed production decisions.
+
+- [tau2-sft-official-native-expanded-turn-filtered](../experiments/tau2-sft-official-native-expanded-turn-filtered/README.md) —
+  two-epoch SFT and matched checkpoint evaluation on the turn-quality-filtered
+  official-native data, using the prior Processed SFT as the data-ablation
+  control.
+
+- [tau2-rl-sft-raw-vs-processed-vanilla-grpo](../experiments/tau2-rl-sft-raw-vs-processed-vanilla-grpo/README.md) —
+  paired 100-update vanilla GRPO runs from raw-all and processed official-native
+  SFT initializations, followed by fixed two-seed official evaluation.
+
+- [qwen38-27b-inference-smoke](../experiments/qwen38-27b-inference-smoke/README.md) —
+  one-GPU BF16 SGLang compatibility check for the local Qwen3.8-27B Hugging
+  Face checkpoint, covering `xhigh` reasoning, text, parsed tool calls, and
+  image input.
+
+- [tau2-sft-turn-quality-qwen38-xhigh-v1](../experiments/tau2-sft-turn-quality-qwen38-xhigh-v1/README.md) —
+  conservative turn-only quality filtering of the selected official-native
+  Agent SFT rows using two local Qwen3.8-27B `xhigh` reviews, with no target
+  reconstruction or repair.
+
+- [audio-01](../experiments/audio-01/README.md) — queue-facing alias for the
+  Qwen3.8 turn-quality resume jobs; the real experiment name is recorded in
+  [EXPERIMENT_ALIASES.md](EXPERIMENT_ALIASES.md).
+
+- [tau2-eval-qwen36-user-parserfix-smoke](../experiments/tau2-eval-qwen36-user-parserfix-smoke/README.md) —
+  three-domain, five-task smoke validating non-thinking text-only Qwen3.6-27B
+  User serving with the Qwen3-Coder tool-call parser.
+
+- [tau2-eval-official-native-smoke](../experiments/tau2-eval-official-native-smoke/README.md) —
+  cluster preflight and four-domain GPU smoke for the Tau2 official native
+  `llm_agent` evaluation path.
+
+- [tau2-eval-official-native-full](../experiments/tau2-eval-official-native-full/README.md) —
+  formal four-domain, four-trial evaluation through the Tau2 official native
+  `llm_agent` path.
+
+- [tau2-eval-qwen35-official-native-four-domain](../experiments/tau2-eval-qwen35-official-native-four-domain/README.md) —
+  matched four-domain, four-trial official-native evaluations of Qwen3.5-4B
+  with Agent thinking enabled and disabled.
+
+- [tau2-qwen3-qwen35-atomic-gap-analysis](../experiments/tau2-qwen3-qwen35-atomic-gap-analysis/README.md) —
+  deterministic and blinded contrastive analysis of two Qwen3-4B-Instruct-2507
+  evaluations against Qwen3.5-4B non-thinking, with targeted prefix replay to
+  separate local action choice from upstream evidence and state accumulation.
+
+- [tau2-banking-task-curriculum](../experiments/tau2-banking-task-curriculum/README.md) —
+  97-task Banking inventory and dependency graphs, plus 564 benchmark-derived
+  diagnostic probes over 94 replayable sources; all are excluded from training.
+
+- [tau2-banking-independent-synthetic-v1](../experiments/tau2-banking-independent-synthetic-v1/README.md) —
+  accepted independent 542/75/30 Banking train/dev/challenge set with an empty
+  DB, a 480-document isolated runtime, reward-one reference replay, and Qwen3.8
+  Agent/User evaluation.
+
+- [audio-curriculum-v1](../experiments/audio-curriculum-v1/README.md) —
+  historical queue-facing alias for earlier jobs in the independent synthetic
+  curriculum; later jobs use the real experiment name recorded in
+  [EXPERIMENT_ALIASES.md](EXPERIMENT_ALIASES.md).
+
+- [tau2-banking-task-curriculum-scale-v2](../experiments/tau2-banking-task-curriculum-scale-v2/README.md) —
+  node-level diagnostic scale-out to 2,740 Banking specifications: every annotated
+  evidence fact, matching BM25 retrieval, and reference action across the 94
+  replayable benchmark tasks; all pass reference replay and none is trainable.
+
+- [tau2-banking-scale-v2-qwen38-eval](../experiments/tau2-banking-scale-v2-qwen38-eval/README.md) —
+  one Qwen3.8-27B Agent/User trajectory and exact Tau2 score for each of the
+  2,740 benchmark-derived diagnostic tasks: 2,163 exact successes (78.94%);
+  trajectories are excluded from SFT, GRPO, and OPD.
+
+- [tau2-banking-curriculum-qwen36-eval](../experiments/tau2-banking-curriculum-qwen36-eval/README.md) —
+  single-trial local Qwen3.6-27B evaluation of all 564 benchmark-derived
+  Banking diagnostic tasks, split by required retrieval mode.
+
+- [tau2-banking-curriculum-qwen38-eval](../experiments/tau2-banking-curriculum-qwen38-eval/README.md) —
+  single-trial Qwen3.8-27B evaluation of all 564 benchmark-derived diagnostic
+  tasks, using Qwen3.8-27B for both Agent and User; all 16 initial protocol
+  failures are recovered and final exact success is 329/564 (58.33%).
+
 - [tau-bench](../experiments/tau-bench/README.md) — tau-bench (tau1, retail)
   RL run-through for Qwen3-4B-Instruct-2507 with slime: generate mock data,
   convert the Instruct checkpoint to torch_dist, then GRPO training with the
@@ -25,6 +117,10 @@ One entry per experiment: name, purpose, link to its README.
   Agent/User/environment timing breakdowns. The current routing comparison
   uses two TP1 Qwen3-4B Agent replicas and three TP2 Qwen3.6-27B User replicas;
   the User router changes from cache-aware to round-robin.
+
+- [tau2-eval-qwen36-user-four-domain](../experiments/tau2-eval-qwen36-user-four-domain/README.md) —
+  eight-GPU asynchronous evaluation of Airline, Retail, Telecom, and
+  Banking Knowledge with explicit BM25 retrieval.
 
 - [tau2-eval-user-sft](../experiments/tau2-eval-user-sft/README.md) —
   tau2-bench official Pass@4 evaluations with the trained local user SFT model
@@ -186,6 +282,22 @@ One entry per experiment: name, purpose, link to its README.
   signed Agent-owned tool contract, strict User-event provenance, native tool
   tokenization, and matched-budget contract-only versus boundary-anchor SFT.
 
+- [tau2-sft-official-native-expanded](../experiments/tau2-sft-official-native-expanded/README.md) —
+  two-pass direct expansion of successful raw AReaL Airline, Retail, and Telecom
+  rows into current Tau2 official-native target-only SFT data, followed by a
+  two-epoch raw-Instruct SFT checkpoint curve and matched official-native evals.
+
+- [tau2-sft-full-domain](../experiments/tau2-sft-full-domain/README.md) —
+  full-domain Agent SFT on the concatenated official-native AReaL and Banking
+  expert datasets, using the prior three-domain SFT recipe.
+
+- [tau2-sft-full-domain-eval](../experiments/tau2-sft-full-domain-eval/README.md) —
+  official four-domain evaluation curve for the later full-domain SFT checkpoints.
+
+- [tau2-sft-raw-all-max16384](../experiments/tau2-sft-raw-all-max16384/README.md) —
+  raw AReaL Tau2 SFT control retaining successful and failed rows, with only
+  over-16,384-token examples removed before final-only two-seed evaluation.
+
 - [tau2-rl-agent-user-boundary-v2](../experiments/tau2-rl-agent-user-boundary-v2/README.md) —
   turn-aware three-domain GRPO from the v3-selected Contract + boundary SFT,
   with absolute Assistant-turn penalties, strict span/token alignment,
@@ -231,6 +343,10 @@ One entry per experiment: name, purpose, link to its README.
 
 - [tau2-sft](../experiments/tau2-sft/README.md) — tau2-bench SFT data
   conversion and Qwen3-4B-Instruct-2507 supervised fine-tuning scripts.
+
+- [tau2-banking-expert-sft](../experiments/tau2-banking-expert-sft/README.md) —
+  Banking synthetic expert-trajectory conversion to native Qwen3 SFT rows and
+  the Banking-only supervised fine-tuning experiment.
 
 - [tau2-user-sft](../experiments/tau2-user-sft/README.md) — tau2-bench user
   simulator SFT data conversion and Qwen3-4B-Instruct-2507 user-model

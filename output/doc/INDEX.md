@@ -389,3 +389,5 @@ One entry per experiment: name, purpose, link to its README.
 - [vitabench-qwen3-4b-instruct-2507-full-eval](../experiments/vitabench-qwen3-4b-instruct-2507-full-eval/README.md) —
   complete Chinese VitaBench evaluation of raw Qwen3-4B-Instruct-2507 with
   local non-thinking Qwen3.6-27B User and Evaluator roles on eight 80GB GPUs.
+
+- [tau2-sft-domain-generalization](../experiments/tau2-sft-domain-generalization/README.md): four-domain mixed versus independent expert SFT and matched full-domain evaluation.

@@ -261,6 +261,22 @@ def make_slime_validate_args(**overrides):
 
 
 @pytest.mark.unit
+def test_slime_validate_args_preserves_explicit_start_rollout_id_for_hf(monkeypatch, tmp_path):
+    module = load_slime_arguments_module(monkeypatch)
+    hf_checkpoint = tmp_path / "hf"
+    hf_checkpoint.mkdir()
+    args = make_slime_validate_args(
+        megatron_to_hf_mode="bridge",
+        load=str(hf_checkpoint),
+        start_rollout_id=100,
+    )
+
+    module.slime_validate_args(args)
+
+    assert args.start_rollout_id == 100
+
+
+@pytest.mark.unit
 def test_slime_validate_args_preserves_zero_rollout_gpus_under_colocate(monkeypatch):
     module = load_slime_arguments_module(monkeypatch)
     args = make_slime_validate_args(colocate=True, rollout_num_gpus=0)

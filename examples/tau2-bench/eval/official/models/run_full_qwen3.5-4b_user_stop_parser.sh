@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export AGENT_TOOL_CALL_PARSER="qwen3_coder"
+
 SERVICE_AGENT_ROOT="${SERVICE_AGENT_ROOT:-/mnt/afs/users/fush/projects/ServiceAgent}"
 OFFICIAL_DIR="${SERVICE_AGENT_ROOT}/slime/examples/tau2-bench/eval/official"
 

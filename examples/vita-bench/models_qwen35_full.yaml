@@ -1,0 +1,54 @@
+default:
+  temperature: 0.0
+  max_input_tokens: 32768
+  num_retries: 5
+  retry_delay: 2
+  headers:
+    Content-Type: application/json
+
+models:
+  - name: Qwen3.5-4B
+    base_url_env: VITA_AGENT_API_BASE_URL
+    response_model_family: Qwen3.5-4B
+    max_tokens: 8192
+    max_input_tokens: 262144
+    chat_template_kwargs:
+      enable_thinking: true
+
+  - name: Qwen3-4B-Instruct-2507
+    base_url_env: VITA_AGENT_API_BASE_URL
+    response_model_family: Qwen3-4B-Instruct-2507
+    max_tokens: 8192
+    max_input_tokens: 262144
+    chat_template_kwargs:
+      enable_thinking: false
+
+  - name: gpt-4.1-ca
+    base_url_env: VITA_API_BASE_URL
+    api_key_env: VITA_API_KEY
+    response_model_family: gpt-4.1
+    max_tokens: 8192
+    max_input_tokens: 32768
+
+  - name: gemini-2.5-flash
+    base_url_env: VITA_API_BASE_URL
+    api_key_env: VITA_API_KEY
+    response_model_family: gemini-2.5-flash
+    max_tokens: 8192
+    max_input_tokens: 32768
+
+  - name: Qwen3.6-27B-user
+    base_url_env: VITA_USER_API_BASE_URL
+    response_model_family: Qwen3.6-27B-user
+    max_tokens: 8192
+    max_input_tokens: 32768
+    chat_template_kwargs:
+      enable_thinking: false
+
+  - name: Qwen3.6-27B-evaluator
+    base_url_env: VITA_EVALUATOR_API_BASE_URL
+    response_model_family: Qwen3.6-27B-evaluator
+    max_tokens: 8192
+    max_input_tokens: 32768
+    chat_template_kwargs:
+      enable_thinking: false

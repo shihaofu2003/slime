@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from transformers import AutoTokenizer
 
 
@@ -195,6 +197,129 @@ class MultiTurnLossMaskGenerator:
 
         return token_ids, loss_mask
 
+    def gen_multi_turn_loss_mask_qwen3_full(
+        self,
+        messages: list[dict],
+        tools: list[dict] = None,
+        *,
+        return_assistant_spans: bool = False,
+    ) -> tuple[list[int], list[int]] | tuple[list[int], list[int], list[dict[str, int | bool]]]:
+        """Mask assistant spans in one full native Qwen3 template rendering.
+
+        Unlike ``qwen3``, this path never reconstructs messages one at a time.
+        That is required for native ``tools=``, structured assistant
+        ``tool_calls``, and consecutive ``role=tool`` results because Qwen's
+        template groups those results using neighboring-message context.
+        """
+
+        rendered_text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            tools=tools,
+            return_dict=False,
+        )
+        tokenized = self.tokenizer(
+            rendered_text,
+            add_special_tokens=False,
+            return_offsets_mapping=True,
+        )
+        token_ids = tokenized["input_ids"]
+        offset_mapping = tokenized.get("offset_mapping")
+        if offset_mapping is None:
+            raise ValueError(
+                "Qwen3 full loss mask generation requires a fast tokenizer "
+                "with `return_offsets_mapping` support."
+            )
+
+        expected_token_ids = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            tools=tools,
+            return_dict=False,
+        )
+        if token_ids != expected_token_ids:
+            raise ValueError(
+                "Qwen3 full rendered-text tokenization does not match "
+                "`apply_chat_template(..., tokenize=True)` output."
+            )
+
+        assistant_header = "<|im_start|>assistant\n"
+        end_marker = "<|im_end|>"
+        char_mask = [0] * len(rendered_text)
+        assistant_char_spans: list[tuple[int, int, int, bool]] = []
+        cursor = 0
+
+        for message_index, message in enumerate(messages):
+            if message["role"] != "assistant":
+                continue
+            header_pos = rendered_text.find(assistant_header, cursor)
+            if header_pos < 0:
+                raise ValueError(
+                    "Failed to locate assistant message in rendered Qwen3 chat template output."
+                )
+            content_start = header_pos + len(assistant_header)
+            end_pos = rendered_text.find(end_marker, content_start)
+            if end_pos < 0:
+                raise ValueError("Failed to locate <|im_end|> for Qwen3 assistant message.")
+            span_end = end_pos + len(end_marker)
+            if span_end < len(rendered_text) and rendered_text[span_end] == "\n":
+                span_end += 1
+            cursor = span_end
+
+            trainable = message.get("step_loss_mask", 1) == 1
+            assistant_char_spans.append(
+                (message_index, content_start, span_end, trainable)
+            )
+            if trainable:
+                for position in range(content_start, span_end):
+                    char_mask[position] = 1
+
+        char_mask_prefix_sum = [0]
+        for value in char_mask:
+            char_mask_prefix_sum.append(char_mask_prefix_sum[-1] + value)
+        loss_mask = []
+        for start, end in offset_mapping:
+            if end <= start:
+                loss_mask.append(0)
+            else:
+                selected = char_mask_prefix_sum[end] - char_mask_prefix_sum[start]
+                loss_mask.append(1 if selected > 0 else 0)
+
+        if not return_assistant_spans:
+            return token_ids, loss_mask
+
+        assistant_spans: list[dict[str, int | bool]] = []
+        for message_index, char_start, char_end, trainable in assistant_char_spans:
+            token_indices = [
+                token_index
+                for token_index, (token_start, token_end) in enumerate(offset_mapping)
+                if token_end > token_start
+                and token_start < char_end
+                and token_end > char_start
+            ]
+            if not token_indices:
+                raise ValueError(
+                    "Failed to map a Qwen3 assistant character span to tokens "
+                    f"(message_index={message_index}, char_span=({char_start}, {char_end}))."
+                )
+            token_start = token_indices[0]
+            token_end = token_indices[-1] + 1
+            if token_indices != list(range(token_start, token_end)):
+                raise ValueError(
+                    "Qwen3 assistant token span is not contiguous "
+                    f"(message_index={message_index}, token_indices={token_indices})."
+                )
+            assistant_spans.append(
+                {
+                    "message_index": message_index,
+                    "token_start": token_start,
+                    "token_end": token_end,
+                    "trainable": trainable,
+                }
+            )
+
+        return token_ids, loss_mask, assistant_spans
+
     def gen_multi_turn_loss_mask_gemma4(
         self, messages: list[dict], tools: list[dict] = None
     ) -> tuple[list[int], list[int]]:
@@ -295,6 +420,8 @@ class MultiTurnLossMaskGenerator:
             return self.gen_multi_turn_loss_mask_qwen(messages, tools)
         elif self.tokenizer_type == "qwen3":
             return self.gen_multi_turn_loss_mask_qwen3(messages, tools)
+        elif self.tokenizer_type == "qwen3_full":
+            return self.gen_multi_turn_loss_mask_qwen3_full(messages, tools)
         elif self.tokenizer_type == "qwen3_5":
             return self.gen_multi_turn_loss_mask_qwen3_5(messages, tools)
         elif self.tokenizer_type == "gemma4":

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROJECT_ROOT="${PROJECT_ROOT:-/mnt/afs/users/fush/projects/ServiceAgent/slime}"
+export VITA_ROLE_BACKEND=local
+export VITA_ROLE_MODEL_PATH="${VITA_ROLE_MODEL_PATH:-/mnt/afs/users/fush/projects/ServiceAgent/models/Qwen3.6-27B}"
+export VITA_ROLE_CONTEXT_LENGTH="${VITA_ROLE_CONTEXT_LENGTH:-32768}"
+export VITA_ROLE_MEM_FRACTION="${VITA_ROLE_MEM_FRACTION:-0.90}"
+export VITA_WORKER_COUNT="${VITA_WORKER_COUNT:-4}"
+export VITA_AGENT_INSTANCE_COUNT="${VITA_AGENT_INSTANCE_COUNT:-2}"
+export VITA_USER_INSTANCE_COUNT="${VITA_USER_INSTANCE_COUNT:-2}"
+export VITA_EVALUATOR_INSTANCE_COUNT="${VITA_EVALUATOR_INSTANCE_COUNT:-4}"
+export VITA_USER_MAX_RUNNING_REQUESTS="${VITA_USER_MAX_RUNNING_REQUESTS:-8}"
+export VITA_EVALUATOR_MAX_RUNNING_REQUESTS="${VITA_EVALUATOR_MAX_RUNNING_REQUESTS:-4}"
+
+exec bash "${PROJECT_ROOT}/examples/vita-bench/run_qwen3_5_4b_full_eval.sh" \
+  --suite-parallelism 4 "$@"

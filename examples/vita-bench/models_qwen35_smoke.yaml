@@ -1,0 +1,19 @@
+default:
+  temperature: 0.0
+  max_input_tokens: 32768
+  headers:
+    Content-Type: application/json
+
+models:
+  - name: Qwen3.5-4B
+    base_url: http://127.0.0.1:30000/v1/chat/completions
+    max_tokens: 8192
+    max_input_tokens: 32768
+    chat_template_kwargs:
+      enable_thinking: true
+
+  - name: gpt-4.1
+    base_url_env: VITA_API_BASE_URL
+    api_key_env: VITA_API_KEY
+    max_tokens: 8192
+    max_input_tokens: 32768

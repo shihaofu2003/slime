@@ -104,6 +104,7 @@ def load_evaluation(
     expected_seed: int,
     results_root: Path,
     label: str,
+    expected_tasks: dict[str, int] = EXPECTED_TASKS,
 ) -> dict[str, Any]:
     summary = read_json(path)
     expected_header = {
@@ -122,7 +123,7 @@ def load_evaluation(
     all_rewards: dict[tuple[str, str], tuple[float, ...]] = {}
     all_counts = defaultdict(int)
     by_domain = {}
-    for domain in DOMAINS:
+    for domain in expected_tasks:
         domain_summary = (summary.get("domains") or {}).get(domain) or {}
         relative_path = Path(str(domain_summary.get("results_file") or ""))
         result_path = (
@@ -130,7 +131,7 @@ def load_evaluation(
         )
         result = read_json(result_path)
         simulations = result.get("simulations") or []
-        expected_simulations = EXPECTED_TASKS[domain] * 4
+        expected_simulations = expected_tasks[domain] * 4
         if len(simulations) != expected_simulations:
             raise ValueError(
                 f"{label}/{domain}: expected {expected_simulations} simulations, "
@@ -153,9 +154,9 @@ def load_evaluation(
             if simulation.get("termination_reason") == "infrastructure_error":
                 raise ValueError(f"{label}/{domain}/{task_id}: infrastructure error")
             trials[task_id][trial] = float(reward)
-        if len(trials) != EXPECTED_TASKS[domain]:
+        if len(trials) != expected_tasks[domain]:
             raise ValueError(
-                f"{label}/{domain}: expected {EXPECTED_TASKS[domain]} tasks, "
+                f"{label}/{domain}: expected {expected_tasks[domain]} tasks, "
                 f"found {len(trials)}"
             )
         domain_rewards = {}
@@ -170,7 +171,7 @@ def load_evaluation(
         recorded = domain_summary.get("pass_metrics") or {}
         for metric, value in computed.items():
             assert_close(recorded.get(metric), value, f"{label}/{domain}/{metric}")
-        if recorded.get("tasks") != EXPECTED_TASKS[domain] or recorded.get(
+        if recorded.get("tasks") != expected_tasks[domain] or recorded.get(
             "simulations"
         ) != expected_simulations:
             raise ValueError(f"{label}/{domain}: summary coverage mismatch")
@@ -194,9 +195,9 @@ def load_evaluation(
     recorded_overall = summary.get("overall") or {}
     for metric, value in overall.items():
         assert_close(recorded_overall.get(metric), value, f"{label}/overall/{metric}")
-    if recorded_overall.get("tasks") != 100 or recorded_overall.get(
+    if recorded_overall.get("tasks") != sum(expected_tasks.values()) or recorded_overall.get(
         "simulations"
-    ) != 400:
+    ) != 4 * sum(expected_tasks.values()):
         raise ValueError(f"{label}: overall coverage mismatch")
     if (recorded_overall.get("diagnostics") or {}).get("infrastructure_errors") != 0:
         raise ValueError(f"{label}: overall infrastructure errors are not zero")
@@ -221,11 +222,11 @@ def discover_rl_summary(experiment_dir: Path, arm: str, iteration: int, seed: in
     return paths[0]
 
 
-def aggregate_evaluations(rows: dict[int, dict[str, Any]]) -> dict[str, Any]:
-    if set(rows) != set(SEEDS):
-        raise ValueError(f"two-seed aggregate requires seeds {SEEDS}")
+def aggregate_evaluations(rows: dict[int, dict[str, Any]], *, seeds=SEEDS, domains=DOMAINS) -> dict[str, Any]:
+    if set(rows) != set(seeds):
+        raise ValueError(f"aggregate requires seeds {seeds}")
     task_sets = [set(row["task_rewards"]) for row in rows.values()]
-    if task_sets[0] != task_sets[1]:
+    if any(tasks != task_sets[0] for tasks in task_sets[1:]):
         raise ValueError("evaluation seeds do not contain the same tasks")
 
     def scope_metrics(domain: str | None) -> dict[str, Any]:
@@ -237,14 +238,14 @@ def aggregate_evaluations(rows: dict[int, dict[str, Any]]) -> dict[str, Any]:
         values = {
             metric: sum(
                 task_metrics(rows[seed]["task_rewards"][key])[metric]
-                for seed in SEEDS
+                for seed in seeds
                 for key in tasks
             )
-            / (len(SEEDS) * len(tasks))
+            / (len(seeds) * len(tasks))
             for metric in PASS_METRICS
         }
         counts = defaultdict(int)
-        for seed in SEEDS:
+        for seed in seeds:
             source = (
                 rows[seed]["overall"]
                 if domain is None
@@ -255,15 +256,15 @@ def aggregate_evaluations(rows: dict[int, dict[str, Any]]) -> dict[str, Any]:
         return {**values, **accuracy(counts), "counts": dict(counts)}
 
     return {
-        "seeds": list(SEEDS),
+        "seeds": list(seeds),
         "overall": scope_metrics(None),
-        "by_domain": {domain: scope_metrics(domain) for domain in DOMAINS},
+        "by_domain": {domain: scope_metrics(domain) for domain in domains},
         "per_seed": {
             str(seed): {
                 "overall": rows[seed]["overall"],
                 "by_domain": rows[seed]["by_domain"],
             }
-            for seed in SEEDS
+            for seed in seeds
         },
     }
 
@@ -294,6 +295,8 @@ def compare_models(
     reference_metrics: dict[str, Any],
     samples: int,
     bootstrap_seed: int,
+    seeds=SEEDS,
+    domains=DOMAINS,
 ) -> dict[str, Any]:
     task_sets = [
         set(row["task_rewards"])
@@ -302,7 +305,7 @@ def compare_models(
     if any(tasks != task_sets[0] for tasks in task_sets[1:]):
         raise ValueError(f"{key}: task sets differ")
     rows = []
-    scopes = (("overall", None), *((domain, domain) for domain in DOMAINS))
+    scopes = (("overall", None), *((domain, domain) for domain in domains))
     for scope_index, (scope, domain) in enumerate(scopes):
         tasks = [
             task
@@ -314,9 +317,9 @@ def compare_models(
                 sum(
                     task_metrics(candidate[seed]["task_rewards"][task])[metric]
                     - task_metrics(reference[seed]["task_rewards"][task])[metric]
-                    for seed in SEEDS
+                    for seed in seeds
                 )
-                / len(SEEDS)
+                / len(seeds)
                 for task in tasks
             ]
             observed, low, high = paired_bootstrap_ci(
@@ -344,7 +347,7 @@ def compare_models(
                 candidate_metrics["by_domain"][domain],
                 reference_metrics["by_domain"][domain],
             )
-            for domain in DOMAINS
+            for domain in domains
         ),
     ):
         metric_deltas[scope] = {
@@ -358,7 +361,7 @@ def compare_models(
         "per_seed_pass_at_1_delta": {
             str(seed): candidate[seed]["overall"]["pass_at_1"]
             - reference[seed]["overall"]["pass_at_1"]
-            for seed in SEEDS
+            for seed in seeds
         },
         "paired_bootstrap": rows,
     }

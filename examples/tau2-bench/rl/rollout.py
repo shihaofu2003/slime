@@ -4,12 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import time
 import traceback
 from pathlib import Path
 from typing import Any
+
+# Local User inference has no per-token API charge. Register its alias so
+# LiteLLM does not raise/log a pricing lookup error on every simulator turn.
+if os.environ.get("TAU2_USER_MODEL") == "Qwen3.6-27B-tau2-user-nonthinking":
+    import litellm
+
+    litellm.register_model({
+        name: {"input_cost_per_token": 0.0, "output_cost_per_token": 0.0,
+               "max_tokens": 65536, "max_input_tokens": 65536,
+               "max_output_tokens": 512, "litellm_provider": "openai", "mode": "chat"}
+        for name in ("Qwen3.6-27B-tau2-user-nonthinking", "openai/Qwen3.6-27B-tau2-user-nonthinking")
+    })
 
 SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
 if str(SHARED_DIR) not in sys.path:
@@ -30,7 +43,7 @@ from agent_contract import (  # noqa: E402
 )
 from namespace_analyzer import raw_tool_names  # noqa: E402
 
-from agent import TrainableSGLangAgent, render_tool_call
+from agent import RolloutContextOverflow, TrainableSGLangAgent, render_tool_call
 from envs import (
     db_path_from_metadata,
     domain_from_metadata,
@@ -41,6 +54,7 @@ from reward import evaluate_simulation_with_constructor, reward_info_to_dict
 from reward_postprocess import (
     TURN_CREDIT_V1,
     TURN_CREDIT_V2,
+    PROGRESS_DB_COUNT_V1,
     TurnCreditAlignmentError,
     build_turn_credit_v2,
     build_token_penalties,
@@ -52,9 +66,10 @@ from reward_postprocess import (
 from slime.rollout.sglang_rollout import GenerateState
 from slime.utils.mask_utils import MultiTurnLossMaskGenerator
 from slime.utils.types import Sample
+from slime.rollout.agent_tokens import BehaviorLogprobError, training_segments
 
 from tau2.data_model.message import AssistantMessage, Message, ToolMessage, UserMessage
-from tau2.data_model.simulation import SimulationRun
+from tau2.data_model.simulation import SimulationRun, TerminationReason
 from tau2.orchestrator.orchestrator import DEFAULT_FIRST_AGENT_MESSAGE, Orchestrator
 from tau2.runner.build import build_user
 
@@ -229,6 +244,81 @@ def _sample_status(simulation: SimulationRun) -> Sample.Status:
     return Sample.Status.FAILED
 
 
+def _behavior_turns(simulation):
+    turns = []
+    for message in simulation.messages:
+        if not isinstance(message, AssistantMessage):
+            continue
+        raw = message.raw_data if isinstance(message.raw_data, dict) else {}
+        if not raw.get("tau2_rl_agent"):
+            continue
+        turn = (raw.get("meta_info") or {}).get("behavior_turn")
+        if turn is None:
+            raise BehaviorLogprobError("Agent message is missing its behavior tokens")
+        turns.append(turn)
+    return turns
+
+
+def _fill_raw_sample(generator, sample, simulation, reward_value, system_prompt, contract, native_tools, field_reward_signals, permanently_too_long=False):
+    turns = _behavior_turns(simulation)
+    credit = configured_turn_credit_version() == PROGRESS_DB_COUNT_V1
+    segments = training_segments(turns, record_spans=credit)
+    total = _conversation_token_len(generator, simulation, system_prompt, contract, native_tools)
+    too_long = permanently_too_long or total > max_train_tokens()
+    sample.reward = reward_value
+    sample.rollout_id = sample.index
+    sample.status = _sample_status(simulation)
+    sample.remove_sample = too_long or not segments
+    if sample.remove_sample:
+        sample.tokens = generator.tokenizer("\n", add_special_tokens=False)["input_ids"]
+        sample.response_length = len(sample.tokens)
+        sample.loss_mask = [0] * sample.response_length
+        sample.rollout_log_probs = [0.0] * sample.response_length
+        sample.training_segments = None
+    else:
+        sample.training_segments = segments
+        for key, value in segments[0].items():
+            setattr(sample, key, value)
+    if credit and not sample.remove_sample:
+        source_indices = sample.metadata["tau2_progress"]["source_indices"]
+        actual_indices = [i for i, message in enumerate(simulation.messages)
+                          if isinstance(message, AssistantMessage)
+                          and isinstance(message.raw_data, dict)
+                          and message.raw_data.get("tau2_rl_agent")]
+        if source_indices != actual_indices:
+            raise TurnCreditAlignmentError("Progress boundaries differ from recorded Assistant outputs")
+        errors = field_reward_signals.get("turn_errors", [])
+        details = [None] * len(turns)
+        for segment_index, segment in enumerate(segments):
+            for span in segment["assistant_spans"]:
+                turn_index = span["turn_index"]
+                source_index = source_indices[turn_index]
+                details[turn_index] = {
+                    "simulation_message_index": source_index,
+                    "segment_index": segment_index,
+                    "response_span": span["response_span"],
+                    "errors": [error for error in errors if error["turn_index"] == source_index],
+                }
+        sample.metadata["tau2_turn_credits"] = details
+        sample.metadata["tau2_turn_credit_version"] = PROGRESS_DB_COUNT_V1
+        sample.train_metadata = {"turn_credit_version": PROGRESS_DB_COUNT_V1}
+    sample.response = generator.tokenizer.decode(sample.tokens[-sample.response_length:])
+    sample.metadata.update({
+        "tau2_original_total_tokens": total,
+        "tau2_train_total_tokens": sum(len(s["tokens"]) for s in segments),
+        "tau2_response_tokens": sum(sum(s["loss_mask"]) for s in segments),
+        "tau2_earliest_policy_version": min((t["policy_version"] for t in turns), default=0),
+        "tau2_latest_policy_version": max((t["policy_version"] for t in turns), default=0),
+        "tau2_token_weighted_policy_version": (
+            sum(t["policy_version"] * len(t["output_token_ids"]) for t in turns)
+            / max(1, sum(len(t["output_token_ids"]) for t in turns))
+        ),
+        "tau2_training_segments": len(segments),
+        "tau2_dropped_too_long": too_long,
+    })
+    return sample
+
+
 def _fill_sample_from_simulation(
     *,
     generator: MultiTurnLossMaskGenerator,
@@ -258,6 +348,9 @@ def _fill_sample_from_simulation(
     the whole group. The neutralization also guards the no-trainable-tokens
     (``response_length == 0``) case.
     """
+    if os.environ.get("TAU2_RAW_TOKENS", "0") == "1":
+        return _fill_raw_sample(generator, sample, simulation, reward_value, system_prompt, contract, native_tools, field_reward_signals, permanently_too_long)
+
     messages, assistant_source_indices = _training_messages(
         simulation,
         system_prompt,
@@ -317,7 +410,7 @@ def _fill_sample_from_simulation(
                 {"token_penalties": [0.0] * response_length}
                 if turn_credit_version == TURN_CREDIT_V1
                 else {
-                    "turn_credit_version": TURN_CREDIT_V2,
+                    "turn_credit_version": turn_credit_version,
                     "token_advantages": [0.0] * response_length,
                 }
             )
@@ -338,6 +431,17 @@ def _fill_sample_from_simulation(
                     turn_errors=list(field_reward_signals.get("turn_errors") or []),
                 )
                 sample.train_metadata = {"token_penalties": token_penalties}
+            elif turn_credit_version == PROGRESS_DB_COUNT_V1:
+                _, turn_details = build_token_penalties(
+                    assistant_spans=assistant_spans,
+                    assistant_source_indices=assistant_source_indices,
+                    response_start=response_start,
+                    response_length=response_length,
+                    loss_mask=loss_mask,
+                    turn_errors=[error for error in field_reward_signals.get("turn_errors", [])
+                                 if error["type"] in {"malformed_json", "nonexistent_tool", "wrong_namespace_tool"}],
+                )
+                sample.train_metadata = {"turn_credit_version": PROGRESS_DB_COUNT_V1}
             else:
                 turn_details = build_turn_credit_v2(
                     assistant_spans=assistant_spans,
@@ -422,6 +526,8 @@ def _conversation_token_len(
         messages,
         tools=contract.tools if contract is not None else native_tools,
     )
+    if os.environ.get("TAU2_RAW_TOKENS", "0") == "1":
+        return max([len(token_ids)] + [len(s["tokens"]) for s in training_segments(_behavior_turns(simulation))])
     return len(token_ids)
 
 
@@ -517,14 +623,18 @@ def _field_reward_payload(
 
 def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]) -> Sample:
     started = time.perf_counter()
+    cpu_started = time.thread_time()
+    timings = {}
+    if getattr(args, "rollout_producer_path", None):
+        from continuous import DIALOGUE
+        DIALOGUE.timings = timings
     task = task_from_metadata(sample.metadata)
     domain = domain_from_metadata(sample.metadata, task)
     db_path = db_path_from_metadata(sample.metadata)
-    environment_constructor = make_environment_constructor(domain=domain, db_path=db_path)
+    environment_constructor = make_environment_constructor(domain=domain, db_path=db_path, task=task)
 
-    # One environment for the agent/user schema (tools + policy are domain-level
-    # and identical across DB reloads); each rollout attempt below reloads a
-    # FRESH environment so tool side-effects do not leak across retries.
+    # Use the schema environment for the first attempt too; retries always get
+    # a fresh DB so tool side-effects cannot leak across attempts.
     setup_environment = environment_constructor()
     try:
         setup_user_tools = setup_environment.get_user_tools() or []
@@ -549,6 +659,7 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
 
     generator = _get_mask_generator(args)
     cap = max_train_tokens()
+    agent.max_train_tokens = cap
     max_retries = max(0, int(os.environ.get("TAU2_RL_MAX_ROLLOUT_RETRIES", "2")))
     max_steps = int(os.environ.get("TAU2_MAX_STEPS", "80"))
     max_errors = int(os.environ.get("TAU2_MAX_ERRORS", "10"))
@@ -559,6 +670,7 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
         if os.environ.get("TAU2_SIMULATION_TIMEOUT")
         else None
     )
+    timings["setup_seconds"] = time.perf_counter() - started
 
     # Per-sample resampling for over-long trajectories: re-run the rollout
     # (a fresh stochastic sample under temperature sampling) until it fits the
@@ -568,6 +680,7 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
     # other trajectories in the group on-policy and untouched.
     simulation = None
     attempts = 0
+    progress_scoring_seconds = 0.0
     permanently_too_long = False
     for attempt in range(max_retries + 1):
         attempts = attempt + 1
@@ -576,7 +689,7 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
             attempt=attempt,
             retry_seed_stride=args.n_samples_per_prompt,
         )
-        run_environment = environment_constructor()
+        run_environment = setup_environment if attempt == 0 else environment_constructor()
         # User tools mutate the device DB owned by their Environment instance,
         # and UserSimulator carries conversation state.  Rebuild both together
         # on every retry so an over-cap attempt cannot leak state into the next
@@ -588,7 +701,34 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
             llm=_with_openai_prefix(user_model),
             llm_args=_user_llm_args(),
         )
-        orchestrator = Orchestrator(
+        if os.environ.get("TAU2_RAW_TOKENS", "0") == "1":
+            generate_user_message = run_user.generate_next_message
+
+            def timed_user_message(message, state, generate=generate_user_message, attempt=attempt):
+                user_started = time.time()
+                try:
+                    return generate(message, state)
+                finally:
+                    timings["user_seconds"] = timings.get("user_seconds", 0.0) + time.time() - user_started
+                    timings["user_calls"] = timings.get("user_calls", 0) + 1
+                    logging.getLogger(__name__).debug(
+                        "tau2_user_turn sample=%s attempt=%s start=%.6f end=%.6f",
+                        sample.index, attempt, user_started, time.time(),
+                    )
+
+            run_user.generate_next_message = timed_user_message
+        orchestrator_class = Orchestrator
+        progress_kwargs = {}
+        if configured_turn_credit_version() == PROGRESS_DB_COUNT_V1:
+            from progress import DBCountProgressOrchestrator, StatePotential
+            orchestrator_class = DBCountProgressOrchestrator
+            progress_kwargs["progress_potential"] = StatePotential(
+                task, environment_constructor,
+                reference_key=(domain, str(db_path.resolve()))
+                if domain != "banking" else None,
+            )
+        orchestrator = orchestrator_class(
+            **progress_kwargs,
             domain=domain,
             agent=agent,
             user=run_user,
@@ -600,7 +740,30 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
             validate_communication=validate_communication,
             timeout=timeout,
         )
-        candidate = orchestrator.run()
+        if getattr(args, "rollout_producer_path", None):
+            from continuous import sampling_step
+
+            orchestrator.initialize = sampling_step(orchestrator.initialize)
+            orchestrator.step = sampling_step(orchestrator.step)
+        simulation_started = time.perf_counter()
+        context_overflow = False
+        try:
+            candidate = orchestrator.run()
+        except RolloutContextOverflow:
+            # Preserve the actual partial trajectory so the existing token-cap
+            # retry/filter path handles it, without accepting shortened context.
+            context_overflow = True
+            orchestrator.termination_reason = TerminationReason.AGENT_ERROR
+            candidate = orchestrator._finalize()
+            logging.getLogger(__name__).warning(
+                "tau2_context_overflow sample=%s attempt=%s: resampling over-cap trajectory",
+                sample.index, attempt,
+            )
+        timings["simulation_seconds"] = timings.get("simulation_seconds", 0.0) + time.perf_counter() - simulation_started
+        if configured_turn_credit_version() == PROGRESS_DB_COUNT_V1:
+            sample.metadata["tau2_progress"] = orchestrator.progress_payload(candidate)
+            progress_scoring_seconds += sample.metadata["tau2_progress"]["scoring_seconds"]
+        token_started = time.perf_counter()
         token_len = _conversation_token_len(
             generator,
             candidate,
@@ -608,11 +771,15 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
             agent.contract,
             agent.native_tools,
         )
+        timings["tokenize_seconds"] = timings.get("tokenize_seconds", 0.0) + time.perf_counter() - token_started
         simulation = candidate
-        if token_len <= cap:
+        # An interrupted attempt may contain only the earlier, short Assistant
+        # turns. It must still be retried, never trained as a shortened episode.
+        if not context_overflow and token_len <= cap:
             break
         permanently_too_long = attempt == max_retries
 
+    evaluation_started = time.perf_counter()
     reward_info = evaluate_simulation_with_constructor(
         simulation=simulation,
         task=task,
@@ -620,6 +787,8 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
         environment_constructor=environment_constructor,
     )
     simulation.reward_info = reward_info
+    timings["evaluate_seconds"] = time.perf_counter() - evaluation_started
+    pack_started = time.perf_counter()
 
     reward_info_dict = reward_info_to_dict(reward_info)
     field_reward_signals = _field_reward_payload(
@@ -661,6 +830,7 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
             "tau2_field_reward_signals": field_reward_signals,
             "tau2_num_messages": len(simulation.messages),
             "tau2_rollout_attempts": attempts,
+            "tau2_progress_scoring_seconds": progress_scoring_seconds,
             "tau2_permanently_too_long": permanently_too_long,
         }
     )
@@ -671,8 +841,24 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
         sample.metadata.update(global_score_details)
     else:
         sample.metadata["raw_reward"] = float(sample.reward)
+    timings["pack_seconds"] = time.perf_counter() - pack_started
+    timings["progress_seconds"] = progress_scoring_seconds
+    timings["wall_seconds"] = time.perf_counter() - started
+    timings["thread_cpu_seconds"] = time.thread_time() - cpu_started
+    sample.metadata["tau2_timing"] = timings
     sample.non_generation_time = time.perf_counter() - started
+    if os.environ.get("TAU2_RAW_TOKENS", "0") == "1":
+        sample.non_generation_time = max(0.0, sample.non_generation_time - sum(
+            message.generation_time_seconds or 0.0 for message in simulation.messages
+            if isinstance(message, (AssistantMessage, UserMessage))
+        ))
+    dump_started = time.perf_counter()
     _dump_trajectory(sample, simulation)
+    timings["dump_seconds"] = time.perf_counter() - dump_started
+    timings["wall_seconds"] = time.perf_counter() - started
+    timings["thread_cpu_seconds"] = time.thread_time() - cpu_started
+    logging.getLogger(__name__).info("tau2_dialogue sample=%s group=%s end=%.6f timing=%s",
+                                   sample.index, sample.group_index, time.time(), timings)
     return sample
 
 
@@ -692,9 +878,9 @@ def _failed_sample(args, sample: Sample, error: BaseException) -> Sample:
     turn_credit_version = configured_turn_credit_version()
     if turn_credit_version == TURN_CREDIT_V1:
         sample.train_metadata = {"token_penalties": [0.0] * sample.response_length}
-    elif turn_credit_version == TURN_CREDIT_V2:
+    elif turn_credit_version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
         sample.train_metadata = {
-            "turn_credit_version": TURN_CREDIT_V2,
+            "turn_credit_version": turn_credit_version,
             "token_advantages": [0.0] * sample.response_length,
         }
     profile = os.environ.get(
@@ -724,7 +910,35 @@ async def generate(args, sample: Sample, sampling_params: dict[str, Any]) -> Sam
     assert not args.partial_rollout, "Partial rollout is not supported for tau2-bench RL."
     try:
         return await asyncio.to_thread(_run_tau2_rollout_sync, args, sample, sampling_params)
+    except BehaviorLogprobError:
+        raise
     except Exception as exc:
         if os.environ.get("TAU2_RL_RAISE_ERRORS", "0") != "0":
             raise
         return _failed_sample(args, sample, exc)
+
+
+async def generate_opd(
+    args,
+    sample: Sample,
+    sampling_params: dict[str, Any],
+    evaluation: bool = False,
+) -> Sample:
+    """Run the Tau2 rollout, then expose its task reward only to OPD diagnostics."""
+
+    result = await generate(args, sample, sampling_params)
+    if evaluation:
+        return result
+    return mark_opd_sample(result)
+
+
+def mark_opd_sample(sample: Sample) -> Sample:
+    """Move the Tau2 task reward into diagnostics before teacher scoring."""
+
+    if sample.reward is None:
+        raise ValueError("Cannot prepare an OPD sample without a Tau2 task reward")
+    task_reward = float(sample.reward)
+    sample.metadata["tau2_opd_task_reward"] = task_reward
+    sample.metadata["raw_reward"] = task_reward
+    sample.reward = None
+    return sample

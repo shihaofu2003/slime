@@ -1,0 +1,17 @@
+# Long-run Agent HTTP wait
+
+Purpose: explain the first extended weight-sync pause in job21124, without excluding it from the measured run time.
+
+The sixth optimizer update finished at2026-09-19 06:18:10 UTC. `Tau2Producer.pause()` then waited for the four environment workers before weight transfer. At06:20:14, three workers had no active Agent request; worker18041 had one thread waiting in `httpcore._receive_response_headers`, and its pause call waited for that request. The remaining trajectory threads waited at the Agent or sampling-step gates.
+
+Read-only Ray diagnostic `tau2-long30-pause6-diagnostic` saved the four [worker stacks](pause-step6-worker-18041.json). No training process was stopped or modified by the diagnostic.
+
+All three Generator engines reported zero running and queued requests. Their completed request counts were7547/7548/7548, with every recorded server request taking at most20 seconds. Snapshots: [engine15000](pause-step6-engine-15000.prom), [engine15002](pause-step6-engine-15002.prom), [engine15004](pause-step6-engine-15004.prom).
+
+The evidence locates the wait in the client/router HTTP response path, before weight transfer; it does not identify which endpoint lost or delayed the response. The current Agent HTTP timeout is600 seconds with one retry on a fresh connection. The read timed out and the existing fresh-connection retry recovered automatically: synchronization finished at06:24:21 UTC, with370.391 seconds draining,0.282 seconds applying weights and0.022 seconds resuming. No process restart or configuration change was made. The complete370.695-second pause stays in the comparison. A shorter Agent transport timeout is a possible follow-up; generation settings need not change.
+
+A second pause followed update16 at07:01:28 UTC. Read-only Ray diagnostic `tau2-long30-pause16-diagnostic` again found one environment worker waiting for Agent HTTP response headers, this time worker18043 ([stack](pause-step16-worker-18043.json)); the other three had no active Agent HTTP call. Synchronization recovered at07:04:16 UTC:167.939 seconds draining,0.341 seconds applying weights and0.069 seconds resuming,168.350 seconds total. The header wait is confirmed; the retained log does not show an additional explicit ReadTimeout line for this incident, so the precise recovery trigger is not established.
+
+The third extended drain followed update17 and lasted499.721 seconds including transfer/resume. Job21124 was stopped after18 optimizer updates to apply a60-second Agent HTTP timeout; it is an incomplete30-update trial. The three long pauses totaled1038.77 seconds. At the third incident, all59,496 completed engine requests were in the<=20-second histogram bucket. The timeout override is now forwarded through the actual Ray runtime environment; worker client warmup honors it, and the Airline training launcher defaults to60 seconds. Existing one-shot fresh-connection retry and policy-version protection are unchanged. Seventeen targeted retry/barrier tests passed ([log](timeout60-tests.log)); timeout propagation and Bash syntax were also checked.
+
+Replacement21168 completed all30 updates and succeeded. The60-second timeout was verified in all four live worker environments. ReadTimeout/ReadError recovery occurred, while the30 synchronization times averaged15.57s and peaked at28.68s. This run did not reproduce the earlier minute-scale pauses; it does not establish removal of the underlying HTTP response-path errors. [Completed long-run comparison](../long30-timeout60/README.md).

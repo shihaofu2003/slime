@@ -31,6 +31,7 @@ from slime.utils.types import Sample
 from reward_postprocess import (
     TURN_CREDIT_V1,
     TURN_CREDIT_V2,
+    PROGRESS_DB_COUNT_V1,
     TurnCreditAlignmentError,
     compute_rollout_score,
     turn_credit_v2_group_has_signal,
@@ -353,10 +354,15 @@ def drop_zero_std_or_unsampleable(args, samples: list[Sample], **kwargs) -> Dyna
         turn_credit_version = metadata.get("tau2_turn_credit_version")
         if turn_credit_version:
             group_turn_credit_version = turn_credit_version
-        turn_credit_expected = turn_credit_version in {TURN_CREDIT_V1, TURN_CREDIT_V2}
+        turn_credit_expected = turn_credit_version in {TURN_CREDIT_V1, TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}
         if train_metadata is None:
             if turn_credit_expected:
                 reason = "missing_turn_credit_train_metadata"
+                break
+            continue
+        if turn_credit_version == PROGRESS_DB_COUNT_V1:
+            if not isinstance(metadata.get("tau2_turn_credits"), list) or not isinstance(metadata.get("tau2_progress"), dict):
+                reason = "missing_progress_metadata"
                 break
             continue
         if turn_credit_version == TURN_CREDIT_V2:
@@ -384,13 +390,20 @@ def drop_zero_std_or_unsampleable(args, samples: list[Sample], **kwargs) -> Dyna
             break
         has_local_signal = has_local_signal or any(penalties)
 
+    if reason is None and os.environ.get("TAU2_DROP_UNIFORM_OUTCOME_GROUPS", "0") == "1":
+        outcomes = [sample.reward for sample in samples]
+        if outcomes and all(reward == 0.0 for reward in outcomes):
+            reason = "official_outcome_all_zero"
+        elif outcomes and all(reward == 1.0 for reward in outcomes):
+            reason = "official_outcome_all_one"
+
     if reason is None and group_turn_credit_version == TURN_CREDIT_V2:
         has_group_signal = turn_credit_v2_group_has_signal(args, samples)
         for sample in samples:
             sample.metadata["tau2_turn_credit_group_has_signal"] = has_group_signal
         if not has_group_signal and replace_zero_signal:
             reason = "turn_credit_v2_zero_signal"
-    elif reason is None and replace_zero_signal:
+    elif reason is None and replace_zero_signal and group_turn_credit_version != PROGRESS_DB_COUNT_V1:
         global_scores = [compute_rollout_score(args, sample)[0] for sample in samples]
         if (
             len(global_scores) > 1

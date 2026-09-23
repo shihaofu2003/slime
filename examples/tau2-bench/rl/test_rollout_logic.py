@@ -1663,7 +1663,7 @@ def main() -> int:
     expert_groups = expert_source.get_samples(6)
     if {group[0].metadata["domain"] for group in expert_groups} != {"airline"}:
         failures.append("airline expert quota drew a non-airline group")
-    for group in expert_groups:
+    for _ in expert_groups:
         expert_source.record_filter_result("airline", keep=True)
     expert_source.finish_rollout(8)
     expert_state = expert_source.checkpoint_state()
@@ -1687,6 +1687,29 @@ def main() -> int:
             pass
         else:
             failures.append("domain quota resume accepted a wrong dataset fingerprint")
+
+    if os.environ.get("TAU2_VALIDATE_APN") == "1":
+        from pydantic import ValidationError
+        from tau2.domains.telecom.environment import get_environment
+        from tau2.domains.telecom.user_data_model import APNSettings
+
+        telecom = get_environment()
+        user_tools = telecom.user_tools
+        before = user_tools.device.model_copy(deep=True)
+        try:
+            user_tools.set_apn_settings("internet")
+        except ValidationError:
+            pass
+        else:
+            failures.append("Telecom APN setter accepted a string")
+        if user_tools.device != before:
+            failures.append("Invalid APN settings mutated device before rejection")
+        # The evaluator must still be able to inspect the device after the error.
+        user_tools._can_send_mms()
+        valid = APNSettings().model_dump()
+        user_tools.set_apn_settings(valid)
+        if user_tools.device.active_apn_settings != APNSettings.model_validate(valid):
+            failures.append("Valid APN settings no longer update device")
 
     # ---- report ---------------------------------------------------------
     if warnings:
@@ -1712,4 +1735,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    os.environ["TAU2_DROP_UNIFORM_OUTCOME_GROUPS"] = "0"
     sys.exit(main())

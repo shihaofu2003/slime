@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sys
 import time
 import uuid
+from functools import lru_cache
+
+from slime.rollout.agent_tokens import recorded_turn
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +27,10 @@ from tau2.data_model.message import (
     UserMessage,
 )
 from transformers import AutoTokenizer
+
+class RolloutContextOverflow(ValueError):
+    """A trajectory exceeds the inference or training context window."""
+
 
 SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
 if str(SHARED_DIR) not in sys.path:
@@ -138,6 +146,18 @@ def _with_generate_endpoint(api_base: str) -> str:
     return f"{api_base}/generate"
 
 
+@lru_cache(maxsize=2)
+def shared_tokenizer(model):
+    return AutoTokenizer.from_pretrained(model, trust_remote_code=True)
+
+
+@lru_cache(maxsize=4)
+def shared_client(timeout):
+    capacity = int(os.environ.get("TAU2_AGENT_CONCURRENCY", "32"))
+    return httpx.Client(timeout=httpx.Timeout(timeout),
+                        limits=httpx.Limits(max_connections=capacity, max_keepalive_connections=capacity))
+
+
 class TrainableSGLangAgent(LLMAgent):
     """Half-duplex tau2 agent that calls slime's sglang router."""
 
@@ -163,7 +183,7 @@ class TrainableSGLangAgent(LLMAgent):
             )
         if self.protocol_signature is not None:
             llm_args["protocol_signature"] = self.protocol_signature
-        self.tokenizer = AutoTokenizer.from_pretrained(llm, trust_remote_code=True)
+        self.tokenizer = shared_tokenizer(llm)
         self.contract: AgentContract | None = None
         self.native_tools: list[dict[str, Any]] | None = None
         if self.protocol_profile == PROTOCOL_AGENT_OWNED_DEPENDENCY_SAFE_MULTI:
@@ -289,16 +309,50 @@ class TrainableSGLangAgent(LLMAgent):
             params["stop"] = list(dict.fromkeys([*stop, self.tokenizer.eos_token]))
         return params
 
-    def _generate_raw(self, prompt: str) -> tuple[str, dict[str, Any]]:
+    def _generate_raw(self, prompt: str | list[int]) -> tuple[str, dict[str, Any]]:
         started = time.perf_counter()
-        with httpx.Client(timeout=httpx.Timeout(self.timeout)) as client:
-            response = client.post(
-                self.sglang_url,
-                json={"text": prompt, "sampling_params": self._sampling_params()},
-            )
+        raw_tokens = os.environ.get("TAU2_RAW_TOKENS", "0") == "1"
+        request = {"sampling_params": self._sampling_params()}
+        if raw_tokens:
+            from continuous import AGENT_TURNS
+
+            cap = getattr(self, "max_train_tokens", 0)
+            if cap and len(prompt) >= cap:
+                # Even one output token would exceed the training cap. Let
+                # rollout resample this attempt without spending more GPU time.
+                raise RolloutContextOverflow(
+                    f"Agent prompt has {len(prompt)} tokens; training cap is {cap}"
+                )
+            request.update(input_ids=prompt, return_logprob=True, logprob_start_len=-1)
+            with AGENT_TURNS.request() as version:
+                try:
+                    response = shared_client(self.timeout).post(self.sglang_url, json=request)
+                except (httpx.ReadError, httpx.ReadTimeout):
+                    # No response was accepted or executed in the environment.
+                    # Keep the turn/version gate held while retrying once on a
+                    # fresh connection; do not close other threads' shared pool.
+                    logging.getLogger(__name__).warning(
+                        "tau2_agent_read_retry version=%s: retrying once on a fresh connection", version,
+                        exc_info=True,
+                    )
+                    with httpx.Client(timeout=httpx.Timeout(self.timeout)) as retry_client:
+                        response = retry_client.post(self.sglang_url, json=request)
+                if response.status_code == 400 and (
+                    "maximum context length" in response.text
+                    or "is longer than the model's context length" in response.text
+                ):
+                    raise RolloutContextOverflow(response.text)
+                response.raise_for_status()
+                payload = response.json()
+                turn = recorded_turn(prompt, payload.get("meta_info") or {}, version)
+        else:
+            request["text"] = prompt
+            response = shared_client(self.timeout).post(self.sglang_url, json=request)
             response.raise_for_status()
             payload = response.json()
         meta_info = dict(payload.get("meta_info") or {})
+        if raw_tokens:
+            meta_info["behavior_turn"] = turn
         meta_info["generation_time_seconds"] = time.perf_counter() - started
         return (payload.get("text") or "").strip(), meta_info
 
@@ -401,7 +455,8 @@ class TrainableSGLangAgent(LLMAgent):
 
         prompt = self.tokenizer.apply_chat_template(
             self._chat_messages(state),
-            tokenize=False,
+            tokenize=os.environ.get("TAU2_RAW_TOKENS", "0") == "1",
+            return_dict=False,
             add_generation_prompt=True,
             tools=(
                 self.contract.tools

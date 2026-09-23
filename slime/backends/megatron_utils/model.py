@@ -592,6 +592,7 @@ def train_one_step(
                     "returns",
                     "rollout_log_probs",
                     "teacher_log_probs",
+                    "opd_reverse_kl",
                     "rollout_mask_sums",
                 ],
             ),

@@ -202,6 +202,10 @@ _examples_synced/
 output/**
 !output/**/
 !output/**/*.md
+# Generated model cards and copied dependency docs are run artifacts, not
+# hand-maintained experiment records.
+output/**/checkpoints/**
+output/**/dependencies/**
 
 # In examples/, track the ServiceAgent benchmark integrations; ignore the rest
 # (upstream slime examples like coding_agent_rl/geo3k_vlm/search-r1, and the

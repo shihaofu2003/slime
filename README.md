@@ -1,203 +1,116 @@
-# slime
+# Service Agent
 
-[中文版](./README_zh.md)
+面向长程客服交互与工具调用的 4B 模型后训练全链路
 
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat)](https://thudm.github.io/slime/)
-[![CI](https://img.shields.io/github/actions/workflow/status/THUDM/slime/pr-test.yml?branch=zilin%2Fci-dont-merge&event=pull_request&label=CI&logo=github)](https://github.com/THUDM/slime/pull/2053/checks)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/THUDM/slime)
+[![Project Page](https://img.shields.io/badge/project-page-2f6fd6)](https://shihaofu2003.github.io/slime/)
+[![Base](https://img.shields.io/badge/base-slime%200.3.0-0ca678)](https://github.com/THUDM/slime)
+[![Benchmark](https://img.shields.io/badge/benchmark-tau2--bench-e8590c)](https://github.com/sierra-research/tau2-bench)
+[![License](https://img.shields.io/badge/license-Apache--2.0-64748b)](LICENSE)
 
-**slime** is an LLM post-training framework for RL scaling, providing two core capabilities:
+本仓库基于 [THUDM/slime](https://github.com/THUDM/slime)，围绕 Airline、Retail、Telecom、Banking 四类客服环境，完成 Qwen3-4B-Instruct-2507 Agent 的评测、监督微调、强化学习、信用分配和多教师 on-policy distillation（OPD）。代码与历史产物沿用 `tau2-bench` 路径；项目文档将加入 Banking 后的四领域任务集合称为 tau3-benchmark。
 
-1.  **High-Performance Training**: Supports efficient training in various modes by connecting Megatron with SGLang;
-2.  **Flexible Data Generation**: Enables arbitrary training data generation workflows through custom data generation interfaces and server-based engines.
+## 项目概览
 
-slime's design goal is to make these two capabilities reinforce each other without turning the system into a heavy stack of disconnected trainers, rollout services, and agent frameworks. Megatron training, SGLang rollout, custom data generation, reward computation, verifier feedback, and environment interaction all flow through the same training / rollout / Data Buffer path.
+客服 Agent 需要在长程对话中理解需求、检索政策、调用工具并正确改变业务状态。这里将模型质量、训练信号和系统吞吐放在同一条可复查链路中处理：
 
-This makes slime one of the most battle-tested open RL post-training frameworks: small enough to understand and extend, but validated through complete training loops behind SOTA-level model releases.
+```mermaid
+flowchart LR
+    E[异步官方评测] --> S[SFT 数据治理]
+    S --> B[Banking 任务构造]
+    B --> R[异步 Agentic RL]
+    R --> C[逐轮信用分配]
+    C --> O[四领域多教师 OPD]
+```
 
-## Why This Design Matters
+训练使用 Agent 作为唯一优化对象，Qwen3.6-27B 作为固定 User simulator。留出评测保留官方二元任务成功定义，同时分别报告平均单次成功率 `pass@1`、至少一次成功的任务覆盖率 `pass@4(any)` 和四次全部成功的一致性 `pass^4`。
 
-- **Battle-tested by frontier model training**: slime is the RL framework behind [GLM-5.2](https://z.ai/blog/glm-5.2), [GLM-5.1](https://z.ai/blog/glm-5.1), [GLM-5](https://z.ai/blog/glm-5), [GLM-4.7](https://z.ai/blog/glm-4.7), [GLM-4.6](https://z.ai/blog/glm-4.6), and [GLM-4.5](https://z.ai/blog/glm-4.5). This validates the full post-training loop, not only isolated examples.
-- **Correctness-first infrastructure**: RL bugs are often silent. slime keeps the dataflow explicit, supports separate rollout-only and train-only debugging paths, and documents reproducibility, fault tolerance, tracing, profiling, and CI as first-class engineering concerns.
-- **Native by design**: slime passes Megatron arguments through directly and exposes installed SGLang arguments with a `--sglang-` prefix. New upstream training and serving optimizations can be used without adding another abstraction layer inside slime.
-- **Maximum data-generation freedom**: math, code, search, tools, sandboxes, verifiers, environments, multi-agent systems, and long-horizon agentic workflows plug in as data generation or reward workflows. They do not fork the training kernel.
-- **Lightweight and opinionated**: slime focuses deeply on the Megatron + SGLang path used for large-scale RL. By choosing one rollout backend, slime can use SGLang-specific capabilities directly instead of flattening multiple inference engines into a lowest-common-denominator abstraction.
+## 六项工作
 
-## Production Validation
+| 阶段 | 实现 | 已完成结果 |
+|---|---|---|
+| 异步评测 | 领域进程、轨迹线程、共享 Agent/User 推理池、弹性并发与 User round-robin | 历史三领域 400 条轨迹从 174.26 分钟降至 35.71 分钟，端到端 4.88×；按申请资源计算的 GPU-hours 从 11.62 降至 4.76 |
+| SFT 数据治理 | 修复 Agent/User 工具边界，按 target-prefix 审查局部监督，重建官方原生格式 | 形成 30,376 条三领域 AReaL 监督数据；匹配重训与官方评测用于选择数据配方 |
+| Banking 任务构造 | 15 类业务模板、7 种任务形态、独立实体与数据库、预设解法回放 | 构造 647 个独立场景，其中 542 个进入训练；同时保留官方 97 题作为独立测试集 |
+| 异步 Agentic RL | 连续采样、K=8 完整组、真实 token/logprob、TIS、有界策略滞后、环境多进程 | 严格同步/异步本身在 20/100 updates 为 1.060×/0.977×；解决 CPU 与供给瓶颈后的 Airline 匹配窗口达到 4.60× |
+| Credit assignment | 字段反馈、错误 Assistant-turn 归因、固定预算零和 turn credit、状态进度 DB-count | v2 对 outcome-only 的三项成功率点估计为 +2.50/+3.50/+4.00 pp，配对区间均含 0；按预设规则保留 v1，DB-count 后续用于四领域专家 |
+| 多教师 OPD | 学生自主 rollout，按领域路由四位专家，current-student reverse-KL advantage 与 TIS | 从已评测 checkpoint 选择 Update 80；单个 4B 学生保留按领域教师总体 pass@1 的 93.4% |
 
-slime has been exercised by the complete workflow needed for release-grade model post-training: large-scale training, high-throughput rollout, weight synchronization, reward/verifier data, checkpointing, debugging, and long-running stability.
+这些数字来自不同阶段的受控实验，不能拼成一次运行的联合增益。详细口径与负结果见下方文档。
 
-Beyond the GLM family, slime also supports:
+## 主要结果
 
-- Qwen series: Qwen3.6, Qwen3.5, Qwen3Next, Qwen3MoE, Qwen3, Qwen2.5;
-- DeepSeek V3 series: DeepSeek V3, V3.1, DeepSeek R1;
-- Llama 3.
+最终四领域 OPD 使用 197 个官方任务、每题 4 trials，共 788 条轨迹；固定 Qwen3.6 User、Agent temperature 0.6、seed 300，并使用 Banking BM25 检索。
 
-## Native Engine Pass-Through and SGLang Deployment
+| 模型 | pass@1 | pass@4(any) | pass^4 |
+|---|---:|---:|---:|
+| SFT4505 | 27.92% | 43.15% | 13.20% |
+| **Update 80 学生** | **28.55%** | **46.70%** | **14.72%** |
+| 按领域选择四位教师 | 30.58% | 49.24% | 12.69% |
 
-slime is not just a framework that can call an inference backend. It keeps the Megatron and SGLang control surfaces close to the upstream engines while adding the RL dataflow around them:
+Update 80 是一个统一学生模型；“按领域选择四位教师”是四个模型组成的参照系统。学生的分领域成绩如下：
 
-- native SGLang argument pass-through: every argument supported by the installed SGLang can be used by adding the `--sglang-` prefix, such as passing `--mem-fraction-static` as `--sglang-mem-fraction-static`;
-- native Megatron argument pass-through: slime reads Megatron arguments directly, so Megatron-side parallelism, optimizer, checkpointing, and model options remain available without wrapper code;
-- [SGLang Config](docs/en/advanced/sglang-config.md) as an optional YAML extension for topology-specific control, such as separate prefill/decode/EPD-style settings, heterogeneous server groups, multi-model serving, and per-group SGLang overrides;
-- [PD Disaggregation](docs/en/advanced/pd-disaggregation.md) for multi-turn and agentic workloads with different prefill/decode resource needs;
-- router policies such as session affinity for multi-turn agents;
-- [Delta Weight Sync](docs/en/advanced/delta-weight-sync.md) for training/inference disaggregation and large-model update efficiency;
-- [External Rollout Engines](docs/en/advanced/external-rollout-engines.md) for deployments where serving is managed outside the training job. The SGLang serving side can use an independent environment, and with disk transport can even run on different GPU models or vendors while using full-checkpoint update from disk or delta update over a shared filesystem.
+| 领域 | pass@1 | pass@4(any) | pass^4 |
+|---|---:|---:|---:|
+| Airline | 50.00% | 80.00% | 30.00% |
+| Retail | 58.13% | 85.00% | 37.50% |
+| Telecom | 48.13% | 87.50% | 15.00% |
+| Banking | 3.87% | 7.22% | 2.06% |
 
-This pass-through design makes slime native from the start. Most upstream engine improvements remain accessible as the engines evolve, while slime focuses on the RL loop, dataflow, synchronization, and correctness checks.
+Update 80 是在同一 seed 300、同一批任务上比较多个 checkpoint 后选出的，尚无独立 seed 确认选型优势。SFT 初始化本身已经达到教师总体 pass@1 的 91.3%；93.4% 表示学生保留的教师绝对成功率，不表示追回了 93.4% 的专家增益。Banking 占 197 题中的 97 题，仍是当前主要能力缺口。
 
-Choosing SGLang as the single rollout backend is also intentional. Multi-backend frameworks often have to abstract over the common subset of several inference engines, which can hide the strongest features of each backend. slime instead optimizes deeply for SGLang so RL workloads can use SGLang-specific serving, routing, caching, disaggregation, and weight-sync behavior directly.
+## 方法与实现
 
-## Correctness, Stability, and CI
+- [官方评测入口](examples/tau2-bench/eval/official/) 使用 tau2 runner API，支持多领域并发、共享推理服务、trial 恢复与统一汇总。
+- [连续采样 producer](examples/tau2-bench/rl/continuous.py) 按完成顺序组装完整 K=8 group，在 Trainer 更新期间继续推进其他对话，并以最早策略版本约束 lag。
+- [原始生成 token 记录](slime/rollout/agent_tokens.py) 保留逐 turn prompt、输出 token、行为 logprob 和 loss mask；超长轨迹重采样，不截断历史消息。
+- [逐轮信用分配](examples/tau2-bench/rl/reward_postprocess.py) 将动作、格式与状态进度归到产生它们的 Assistant turn；[状态进度实现](examples/tau2-bench/rl/progress.py) 支持四领域 DB/环境比较。
+- [多教师 OPD](examples/tau2-bench/opd/tau2_opd.py) 根据任务领域请求对应教师，对学生实际生成 token 打分，并保留异步 rollout 的 TIS 校正。
 
-slime is developed as RL infrastructure, where "the script runs" is not enough. The project maintains CPU unit tests, contract tests for customization hooks, and GPU end-to-end tests covering dense and MoE models, Megatron training paths, SGLang deployment configurations, checkpointing, numerical precision, async rollout, OPD, PPO-style workflows, and debug rollout-then-train replay.
+## 仓库结构
 
-Useful engineering docs:
+| 路径 | 内容 |
+|---|---|
+| [examples/tau2-bench/eval/official](examples/tau2-bench/eval/official/) | 官方原生评测、模型请求与异步调度 |
+| [examples/tau2-bench/sft](examples/tau2-bench/sft/) | Agent/User SFT 数据准备与训练入口 |
+| [examples/tau2-bench/analysis](examples/tau2-bench/analysis/) | 数据审查、Banking 合成与实验分析 |
+| [examples/tau2-bench/rl](examples/tau2-bench/rl/) | rollout、reward、credit、连续采样和训练脚本 |
+| [examples/tau2-bench/opd](examples/tau2-bench/opd/) | 多教师 OPD 数据、教师评分与启动脚本 |
+| [scripts](scripts/) | 训练、转换、评测、监控和集群提交脚本 |
+| [output/doc](output/doc/) | 跨实验结论与证据索引 |
+| [output/experiments](output/experiments/) | 每项实验的配置、作业链接和结果摘要 |
 
-- [CI](docs/en/developer_guide/ci.md)
-- [Debugging](docs/en/developer_guide/debug.md)
-- [Reproducibility](docs/en/advanced/reproducibility.md)
-- [Fault Tolerance](docs/en/advanced/fault-tolerance.md)
-- [Trace Viewer](docs/en/developer_guide/trace.md)
-- [Profiling](docs/en/developer_guide/profiling.md)
+## 运行与验证
 
-## Blogs
+本项目训练环境沿用 slime 的 Megatron-LM + Ray + SGLang 栈。先按[上游 Quick Start](docs/en/get_started/quick_start.md)安装框架，再准备同级的 `tau2-bench`、模型、数据和 checkpoint；集群脚本中的 `SERVICE_AGENT_ROOT`、`PROJECT_ROOT`、模型与数据路径均可通过环境变量覆盖。
 
-- Our vision: [slime: An SGLang-Native Post-Training Framework for RL Scaling](https://lmsys.org/blog/2025-07-09-slime/).
-- Our ideas on agentic training: [Agent-Oriented Design: An Asynchronous and Decoupled Framework for Agentic RL](https://www.notion.so/Agent-Oriented-Design-An-Asynchronous-and-Decoupled-Framework-for-Agentic-RL-2278e692d081802cbdd5d37cef76a547)
-- v0.1.0 release note: [v0.1.0: Redefining High-Performance RL Training Frameworks](https://thudm.github.io/slime/blogs/release_v0.1.0.html)
-
-## Table of Contents
-
-- [Why This Design Matters](#why-this-design-matters)
-- [Production Validation](#production-validation)
-- [Native Engine Pass-Through and SGLang Deployment](#native-engine-pass-through-and-sglang-deployment)
-- [Correctness, Stability, and CI](#correctness-stability-and-ci)
-- [Architecture Overview](#architecture-overview)
-- [Quick Start](#quick-start)
-- [Ecosystem Built on slime](#ecosystem-built-on-slime)
-- [Arguments Walkthrough](#arguments-walkthrough)
-- [Developer Guide](#developer-guide)
-- [FAQ & Acknowledgements](#faq--acknowledgements)
-
-## Architecture Overview
-
-![arch](./imgs/arch.png)
-
-**Module Descriptions**:
-
-- **training (Megatron)**: Responsible for the main training process, reads data from the Data Buffer, and synchronizes parameters to the rollout module after training.
-- **rollout (SGLang + router)**: Generates new data (including rewards/verifier outputs) and stores it in the Data Buffer. Custom generate functions can wrap this with multi-turn loops, tool calls, environment/sandbox interaction, and verifier-based reward.
-- **data buffer**: A bridge module that manages prompt initialization, custom data, and rollout generation methods (including agentic workflows that produce samples through the same interface).
-
-## Quick Start
-
-For a comprehensive quick start guide covering environment setup, data preparation, training startup, and key code analysis, please refer to:
-- [Quick Start Guide](./docs/en/get_started/quick_start.md)
-
-We also provide examples for some use cases not covered in the quick start guide; please check [examples](examples/).
-
-### Agentic RL examples
-
-For agentic RL workloads, the following examples plug into the standard rollout / Data Buffer loop through customization interfaces — they are not separate frameworks:
-
-- [`examples/multi_agent`](examples/multi_agent/README.md): Multi-agent rollout via a custom `--rollout-function-path`.
-- [`examples/search-r1`](examples/search-r1/): Search/RAG-style multi-turn generation via `--custom-generate-function-path`.
-- [`examples/fully_async`](examples/fully_async/README.md): Fully-async rollout, useful for long-tail agentic generation where some samples take much longer than others.
-- [`examples/coding_agent_rl`](examples/coding_agent_rl/README.md): End-to-end SWE coding-agent RL with sandboxed tool use, test-based rewards, and token-correct trajectory segments via `--custom-generate-function-path`.
-
-See the [Customization Guide](docs/en/get_started/customization.md) for which interface to use for a given agentic workflow.
-
-## Ecosystem Built on slime
-
-These are not just demos. They are independent systems that use slime as a reusable RL substrate for production-scale post-training, agentic RL, domain RL, and rollout-system research.
-
-### 🐎 Dressage: Scalable RL for Any Agent and Sandbox
-
-[**Dressage**](https://github.com/Accio-Lab/Dressage) is an agentic RL training framework built on slime by [Alibaba Accio](https://www.accio.com/work?im_ref=1O8wgT3poxyZWCj31F1ZJ0fNUkuTK6x9ZTHw0Y0&sharedid=&im_pid=5619512&im_pname=AI%20INTRO%20COPORATE), centered on unified RL for blackbox agents (e.g., [OpenCode](https://github.com/anomalyco/opencode), [OpenClaw](https://github.com/openclaw/openclaw)) and white loops across any sandbox environment (e.g., [bwrap](https://github.com/containers/bubblewrap), [E2B](https://github.com/e2b-dev/e2b), Kubernetes). It decouples interaction semantics, execution placement, and token-level trajectory capture through Paddock, Sandbox, and Proxy layers, adapting agent workflows without rewriting their internal loops. Dressage records token-wise logprobs, loss masks, weight versions, and MoE routing, then uses TITO and segment-aware training to turn long-horizon tool interactions into stable RL samples.
-
-### ⛵ Miles: Enterprise-Grade Reinforcement Learning for Large-Scale Model Training
-
-[Miles](https://github.com/radixark/miles) is an RL post-training framework for large-scale models, built on slime by [RadixArk](https://github.com/radixark). It stays closely aligned with slime's upstream development while extending it with enterprise-oriented features: deeper [SGLang](https://github.com/sgl-project/sglang) integration, operational tooling, deployment support, and optimizations for new [models](https://www.radixark.com/miles/docs/models) and [hardware](https://www.radixark.com/miles/docs/platforms). Miles also adds a growing set of production features, including LoRA, TITO, and low-precision training.
-
-### 🔷 vime: vLLM-Native RL Post-Training Built on slime
-
-[**vime**](https://github.com/vllm-project/vime) is a post-training framework built on slime and maintained by the vLLM project. It keeps slime's Megatron training stack, Data Buffer dataflow, and custom data-generation design, with its main change being a rollout backend swapped to [**vLLM**](https://github.com/vllm-project/vllm) with [vllm-router](https://github.com/vllm-project/router). Starting from an existing slime launch script, adjusting only rollout-related parameters is enough to quickly run training with vime.
-
-### 🌈 Relax: Asynchronous RL Engine for Omni-Modal Agentic Training
-
-[**Relax**](https://github.com/redai-infra/Relax) (Reinforcement Engine Leveraging Agentic X-modality) is an omni-modal agentic RL framework open-sourced by the RedAI Infra team, built upon the slime infrastructure stack that combines Ray, Megatron-LM, and SGLang. Relax adopts a service-oriented architecture on Ray Serve with Megatron-LM and SGLang as training/inference backends. It uses [TransferQueue](https://github.com/Ascend/TransferQueue) to fully decouple Actor, Rollout, ActorFwd, Reference, and Advantage computation onto independent GPU clusters, and introduces **DCS (Distributed Checkpoint Service)** — an NCCL-broadcast weight-sync engine that streams updated Actor weights to Rollout/ActorFwd/Reference asynchronously and overlaps the transfer with the next training step, enabling fully-async training at configurable staleness. Relax supports end-to-end RL for text, vision, and audio (including Qwen3-Omni) and agentic multi-turn rollouts.
-
-### 🦞 OpenClaw-RL: Train a Personalized Clawbot Simply by Talking to It
-
-[**OpenClaw-RL**](https://github.com/Gen-Verse/OpenClaw-RL) is an RL server for personalized OpenClaw agents. It hosts the OpenClaw model and improves it from prior conversations across deployments, while slime's asynchronous RL infrastructure prevents training from interfering with API serving. It supports two automatic optimization methods: GRPO with binary feedback inferred from subsequent states, and on-policy distillation that extracts hindsight hints from later feedback for the current policy.
-
-### ⚛️ P1: Mastering Physics Olympiads with Reinforcement Learning
-
-[**P1**](https://prime-rl.github.io/P1/) is a family of open-source physics reasoning models trained entirely through reinforcement learning. P1 leverages slime as the RL post-training framework, and introduces a multi-stage RL training algorithm that progressively enhances reasoning ability through adaptive learnability adjustment and stabilization mechanisms. Empowered by this training paradigm, P1 delivers breakthrough performance in open-source physics reasoning.
-
-### 📈RLVE: Scaling LM RL with Adaptive Verifiable Environments
-
-[**RLVE**](https://github.com/Zhiyuan-Zeng/RLVE) introduces an approach using verifiable environments that procedurally generate problems and provide algorithmically verifiable rewards, to scale up RL for language models (LMs). With joint training across 400 verifiable environments, RLVE enables each environment to dynamically adapt its problem difficulty distribution to the policy model's capabilities as training progresses.
-
-### ⚡ TritonForge: Agentic RL Training Framework for Kernel Generation
-
-[**TritonForge**](https://github.com/RLsys-Foundation/TritonForge) leverages slime's SFT and RL capabilities to train LLMs that automatically generate optimized GPU kernels. By using a two-stage training approach—supervised fine-tuning followed by reinforcement learning with multi-turn compilation feedback—TritonForge achieves remarkable results in converting PyTorch operations into high-performance Triton kernels.
-
-### 🚀 APRIL: Accelerating RL Training with Active Partial Rollouts
-
-[**APRIL**](https://github.com/RLsys-Foundation/APRIL) introduces a system-level optimization that seamlessly integrates with slime to accelerate the rollout generation phase in RL training. By intelligently over-provisioning requests and actively managing partial completions, APRIL addresses the long-tail generation bottleneck that typically consumes over 90% of RL training time.
-
-### 🏟️ qqr: Scaling Open-Ended Agents with ArenaRL & MCP
-
-[**qqr**](https://github.com/Alibaba-NLP/qqr) (a.k.a. hilichurl) is a lightweight extension for slime designed to evolve open-ended agents. It implements the **ArenaRL** algorithm to tackle discriminative collapse through tournament-based relative ranking (**e.g., Seeded Single-Elimination, Round-Robin**) and seamlessly integrates the **Model Context Protocol (MCP)**. qqr leverages slime's high-throughput training capabilities to enable scalable, distributed evolution of agents in standardized, decoupled tool environments.
-
-### ☁️ ART: Scalable and Sandboxed Agentic RL on AWS Bedrock AgentCore Runtime
-
-[**ART (AgentCore RL Toolkit)**](https://github.com/awslabs/agentcore-rl-toolkit) is an SDK that adapts production agents for RL training on **AWS Bedrock AgentCore Runtime**. AgentCore Runtime provides auto-scaled and sandboxed agent execution environments well-suited for running many parallel agent rollouts securely. Using ART, user only needs to apply a decorator (`@app.rollout_entrypoint`) to their agent codes for RL adaption while the same production agent harness is reused directly, where token capture for RL is handled at model gateway layer. ART uses slime as one option of training backends, enabling users to easily optimizing the production agent model with RL training algorithms in slime.
-
-Together, these projects show the main idea behind slime: one high-performance RL kernel can support frontier model post-training, online agent optimization, verifiable environments, omni-modal rollouts, kernel-generation agents, and rollout-system research without changing the core training loop.
-
-## Arguments Walkthrough
-
-Arguments in slime are divided into three categories:
-
-1.  **Megatron arguments**: slime reads Megatron arguments directly. You can configure Megatron by passing arguments like `--tensor-model-parallel-size 2`.
-2.  **SGLang arguments**: All arguments for the installed SGLang are supported through pass-through. These arguments must be prefixed with `--sglang-`. For example, `--mem-fraction-static` should be passed as `--sglang-mem-fraction-static`.
-3.  **slime-specific arguments**: Please refer to: [slime/utils/arguments.py](slime/utils/arguments.py)
-
-For complete usage instructions, please refer to the [Usage Documentation](docs/en/get_started/usage.md).
-
-## Developer Guide
-
-- **Contributions are welcome\!** If you have suggestions for new features, performance tuning, or feedback on user experience, feel free to submit an Issue or PR 😊
-
-- Use [pre-commit](https://pre-commit.com/) to ensure code style consistency for your commits:
+官方评测示例：
 
 ```bash
-apt install pre-commit -y
-pre-commit install
-
-# run pre-commit to ensure code style consistency
-pre-commit run --all-files --show-diff-on-failure --color=always
+bash scripts/submit.sh --experiment tau2-eval --gpus 2 \
+  examples/tau2-bench/eval/official/run_eval.sh
 ```
 
-- For debugging tips, please refer to the [Debugging Guide](docs/en/developer_guide/debug.md)
+异步 rollout 与 OPD 的 CPU 回归：
 
-## FAQ & Acknowledgements
-
-- For frequently asked questions, please see the [Q\&A](docs/en/get_started/qa.md)
-- Special thanks to the following projects & communities: SGLang, Megatron‑LM, mbridge, OpenRLHF, veRL, Pai-Megatron-Patch and others.
-- To quote slime, please use:
-
-```bibtex
-@misc{slime_github,
-  author       = {Zilin Zhu and Chengxing Xie and Xin Lv and slime Contributors},
-  title        = {slime: An LLM post-training framework for RL Scaling},
-  year         = {2025},
-  howpublished = {\url{https://github.com/THUDM/slime}},
-  note         = {GitHub repository. Corresponding author: Xin Lv},
-  urldate      = {2025-06-19}
-}
+```bash
+NUM_GPUS=0 python -m pytest \
+  tests/test_tau2_continuous.py \
+  tests/test_tau2_opd_training.py -q
 ```
+
+正式训练前还会运行 [rollout preflight](examples/tau2-bench/rl/test_rollout_logic.py)。实验启动配置与选定 checkpoint 记录在对应的 experiment README 中。
+
+## 文档与证据
+
+- [项目主页](https://shihaofu2003.github.io/slime/)：按论文结构呈现六项工作、系统图、实验表格与限制。
+- [实验总索引](output/doc/INDEX.md)：全部实验目的、README 与运行记录入口。
+- [异步评测](docs/01-async-evaluation-star.md)、[SFT 数据治理](docs/02-sft-data-star.md)、[Banking 任务构造](docs/03-banking-task-synthesis-star.md)。
+- [异步 RL、速度与 credit 汇总](output/doc/TAU2_ASYNC_SYNC_SPEED_CREDIT.md)。
+- [Credit assignment 受控对照](output/experiments/tau2-agent-single-call-credit-core/CREDIT_COMPARISON.md)。
+- [四领域 OPD 最终记录](output/experiments/tau2-opd-four-domain-20260923/README.md)与 [OPD 状态摘要](output/doc/OPD_STATUS.md)。
+
+## 致谢与许可
+
+本项目建立在 [slime](https://github.com/THUDM/slime)、[tau2-bench](https://github.com/sierra-research/tau2-bench) 与 [Qwen3](https://github.com/QwenLM/Qwen3) 之上。框架原始文档保留在 [docs](docs/)，上游中文介绍见 [README_zh.md](README_zh.md)。
+
+代码沿用仓库的 [Apache 2.0 License](LICENSE)。

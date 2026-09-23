@@ -324,6 +324,20 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                     "Also, sometimes this will help alleviate the bug that transformers cannot find certain model."
                 ),
             )
+            parser.add_argument("--rollout-producer-path", type=str, default=None,
+                                help="Background producer class with generate/pause/resume/save/close lifecycle.")
+            parser.add_argument("--tau2-pool-capacity", type=int, default=10)
+            parser.add_argument("--tau2-max-pending-groups", type=int, default=None,
+                                help="Bound partial groups while replenishing individual trajectory slots; defaults to pool capacity.")
+            parser.add_argument("--tau2-max-buffered-groups", type=int, default=-1,
+                                help="Total admitted groups, including generating, ready and training groups; -1 keeps legacy unbounded prefetch.")
+            parser.add_argument("--tau2-environment-workers", type=int, default=1,
+                                help="CPU environment processes for unlimited-lag async sampling; shares the Agent request budget.")
+            parser.add_argument("--tau2-sampling-mode", choices=["sync", "async"], default="async")
+            parser.add_argument(
+                "--tau2-max-policy-lag", type=int, default=1,
+                help="Maximum optimizer updates between a group's earliest Agent turn and consumption; -1 disables the lag gate.",
+            )
             parser.add_argument(
                 "--rollout-function-path",
                 type=str,
@@ -1142,6 +1156,20 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
             )
             parser.add_argument(
                 "--opd-teacher-ckpt-step", type=int, default=None, help="The checkpoint step for OPD teacher model."
+            )
+            parser.add_argument(
+                "--opd-use-behavior-logprobs",
+                action="store_true",
+                default=False,
+                help=(
+                    "Reproduce the experimental OPD advantage using behavior-policy log-probs. "
+                    "This changes the objective under policy lag; it is not an unbiased correction "
+                    "for current-student reverse KL. Defaults to current train-side log-probs."
+                ),
+            )
+            parser.add_argument(
+                "--opd-post-update-log-interval", type=int, default=0,
+                help="Recompute log-probs on the training batch every N OPD updates to measure policy change; 0 disables the extra forward.",
             )
             return parser
 

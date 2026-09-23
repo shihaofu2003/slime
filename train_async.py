@@ -1,3 +1,6 @@
+import logging
+import time
+
 import ray
 
 from slime.ray.placement_group import create_placement_groups, create_rollout_manager, create_training_models
@@ -21,11 +24,19 @@ def train(args):
     # create the actor and critic models
     actor_model, critic_model = create_training_models(args, pgs, rollout_manager)
 
+    initial_update_started = time.time()
     # Always push actor weights to rollout once weights are loaded.
     actor_model.update_weights()
 
     if args.check_weight_update_equal:
         ray.get(rollout_manager.check_weights.remote(action="compare"))
+
+    if args.rollout_producer_path:
+        if args.use_critic or args.update_weights_interval != 1:
+            raise ValueError("Continuous Tau2 GRPO requires actor-only training and weight updates every step")
+        train_with_producer(args, actor_model, rollout_manager, num_rollout_per_epoch, initial_update_started)
+        finish_tracking(args)
+        return
 
     # async train loop.
     rollout_data_next_future = rollout_manager.generate.remote(args.start_rollout_id)
@@ -73,6 +84,40 @@ def train(args):
 
     ray.get(rollout_manager.dispose.remote())
     finish_tracking(args)
+
+
+def train_with_producer(args, actor_model, rollout_manager, num_rollout_per_epoch, started):
+    logger = logging.getLogger(__name__)
+    try:
+        ray.get(rollout_manager.start_producer.remote(args.start_rollout_id))
+        for rollout_id in range(args.start_rollout_id, args.num_rollout):
+            data = ray.get(rollout_manager.generate.remote(rollout_id))
+            train_start = time.time()
+            ray.get(actor_model.async_train(rollout_id, data))
+            logger.info("tau2_trainer batch=%s start=%.6f end=%.6f", rollout_id, train_start, time.time())
+            ray.get(rollout_manager.finish_producer_training.remote())
+            if should_run_periodic_action(rollout_id, args.save_interval, num_rollout_per_epoch, args.num_rollout):
+                save_start = time.time()
+                actor_model.save_model(rollout_id, force_sync=True)
+                ray.get(rollout_manager.save.remote(rollout_id))
+                logger.info("tau2_checkpoint batch=%s start=%.6f end=%.6f", rollout_id, save_start, time.time())
+            update_start = time.time()
+            ray.get(rollout_manager.pause_producer.remote())
+            drained = time.time()
+            actor_model.update_weights()  # Existing updater flushes the generator KV caches.
+            applied = time.time()
+            ray.get(rollout_manager.resume_producer.remote(rollout_id + 1))
+            resumed = time.time()
+            logger.info("tau2_weight_update batch=%s start=%.6f end=%.6f", rollout_id, update_start, resumed)
+            logger.info(
+                "tau2_weight_update_phases batch=%s start=%.6f drained=%.6f applied=%.6f resumed=%.6f "
+                "drain_seconds=%.6f transfer_apply_seconds=%.6f resume_seconds=%.6f",
+                rollout_id, update_start, drained, applied, resumed,
+                drained - update_start, applied - drained, resumed - applied,
+            )
+    finally:
+        ray.get(rollout_manager.dispose.remote())
+    logger.info("tau2_training_elapsed start=%.6f end=%.6f seconds=%.6f", started, time.time(), time.time() - started)
 
 
 if __name__ == "__main__":

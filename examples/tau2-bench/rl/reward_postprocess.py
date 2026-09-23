@@ -52,6 +52,7 @@ import json
 import math
 import os
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -61,9 +62,10 @@ from slime.utils.types import Sample
 
 TURN_CREDIT_V1 = "turn-credit-v1"
 TURN_CREDIT_V2 = "turn-credit-v2"
+PROGRESS_DB_COUNT_V1 = "progress-db-count-v1"
 # Backward-compatible name used by the selected v1 scripts and tests.
 TURN_CREDIT_VERSION = TURN_CREDIT_V1
-SUPPORTED_TURN_CREDIT_VERSIONS = frozenset({TURN_CREDIT_V1, TURN_CREDIT_V2})
+SUPPORTED_TURN_CREDIT_VERSIONS = frozenset({TURN_CREDIT_V1, TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1})
 _TURN_PENALTY_SPECS = {
     "nonexistent_tool": (0.15, 0.30),
     "malformed_json": (0.15, 0.30),
@@ -177,17 +179,22 @@ def compute_field_reward_signals(
         if compare_args is None:
             compare_args = list((gold.get("arguments") or {}).keys())
 
-        def candidate_score(index: int) -> tuple[int, int, int]:
+        def candidate_score(
+            index: int,
+            *,
+            target: dict[str, Any] = gold,
+            compared_keys: tuple[str, ...] = tuple(compare_args),
+        ) -> tuple[int, int, int]:
             predicted = predicted_calls[index]
-            name_match = predicted.get("name") == gold.get("name")
+            name_match = predicted.get("name") == target.get("name")
             matched_args = sum(
                 (predicted.get("arguments") or {}).get(key)
-                == (gold.get("arguments") or {}).get(key)
-                for key in compare_args
+                == (target.get("arguments") or {}).get(key)
+                for key in compared_keys
             )
             full_argument_matches = sum(
                 (predicted.get("arguments") or {}).get(key) == value
-                for key, value in (gold.get("arguments") or {}).items()
+                for key, value in (target.get("arguments") or {}).items()
             )
             return (
                 int(name_match),
@@ -856,7 +863,7 @@ def compute_rollout_score(args, sample: Sample) -> tuple[float, dict[str, Any]]:
     version = configured_turn_credit_version()
     if version == TURN_CREDIT_V1:
         return compute_global_score(args, sample)
-    if version == TURN_CREDIT_V2:
+    if version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
         task_reward = float(sample.get_reward_value(args))
         _, field_details = compute_global_score(args, sample)
         return task_reward, {
@@ -865,7 +872,7 @@ def compute_rollout_score(args, sample: Sample) -> tuple[float, dict[str, Any]]:
             "partial_components_diagnostic": field_details["partial_components"],
             "tau2_global_score": task_reward,
             "shaped_reward": task_reward,
-            "tau2_reward_recipe": TURN_CREDIT_V2,
+            "tau2_reward_recipe": version,
         }
 
     global_score, details = compute_global_score(args, sample)
@@ -1091,6 +1098,107 @@ def attach_turn_credit_v2_token_advantages(
     )
 
 
+def attach_progress_group_advantages(args, samples):
+    """Add outcome, DB-count progress, and format credit to response tokens."""
+    from progress import db_count_group_advantages
+
+    k = int(args.n_samples_per_prompt)
+    if len(samples) % k:
+        raise TurnCreditAlignmentError("Progress postprocess requires complete task groups")
+    if args.advantage_estimator != "grpo" or not args.rewards_normalization or not args.grpo_std_normalization:
+        raise ValueError("progress-db-count-v1 requires normalized GRPO with sample std")
+    weight = float(os.environ.get("TAU2_PROGRESS_WEIGHT", "1.0"))
+    format_weight = float(os.environ.get("TAU2_FORMAT_WEIGHT", "1.0"))
+    gamma = float(os.environ.get("TAU2_PROGRESS_GAMMA", "0.98"))
+    for start in range(0, len(samples), k):
+        group = samples[start:start + k]
+        identities = {(s.group_index, s.metadata.get("tau2_domain"), s.metadata.get("tau2_task_id")) for s in group}
+        if len(identities) != 1 or any(s.remove_sample for s in group):
+            raise TurnCreditAlignmentError("Progress postprocess received mixed or invalid group")
+        outcome = _group_normalize([float(s.get_reward_value(args)) for s in group],
+                                   valid_mask=[1.0] * k, n_samples_per_prompt=k, apply_std=True)
+        payloads = [s.metadata["tau2_progress"] for s in group]
+        details = [s.metadata["tau2_turn_credits"] for s in group]
+        reasons = sorted({p["unavailable_reason"] for p in payloads if p["unavailable_reason"]})
+        for turns, payload in zip(details, payloads, strict=True):
+            if ([d["simulation_message_index"] for d in turns] != payload["source_indices"]
+                    or len(payload["scores"]) != len(turns) + 1):
+                raise TurnCreditAlignmentError("State boundaries and Assistant spans do not align")
+        if reasons:
+            rtgs = [[None] * len(turns) for turns in details]
+            progress = [[0.0] * len(turns) for turns in details]
+        else:
+            rtgs, progress = db_count_group_advantages(
+                [p["scores"] for p in payloads], [p["db_diff_counts"] for p in payloads], gamma=gamma)
+        bucket_members = {}
+        for i, payload in enumerate(payloads):
+            for count in payload["db_diff_counts"]:
+                bucket_members.setdefault(count, []).append(i)
+        group_signal = False
+        for i, sample in enumerate(group):
+            values = []
+            for t, detail in enumerate(details[i]):
+                local = -0.1 * float(any(e["type"] in {"malformed_json", "nonexistent_tool", "wrong_namespace_tool"}
+                                        for e in detail["errors"]))
+                advantage = outcome[i] + weight * progress[i][t] + format_weight * local
+                detail.update(outcome_advantage=outcome[i], progress_rtg=rtgs[i][t],
+                              progress_advantage=progress[i][t], format_penalty=local,
+                              progress_gamma=gamma, advantage=advantage,
+                              progress_reward=(payloads[i]["scores"][t + 1] - payloads[i]["scores"][t]
+                                               if not reasons else None))
+                count = payloads[i]["db_diff_counts"][t]
+                members = bucket_members[count]
+                detail.update(db_diff_count=count, db_bucket_turns=len(members),
+                              db_bucket_trajectories=len(set(members)),
+                              db_diff_side_counts=payloads[i]["db_diff_side_counts"][t])
+                values.append(advantage)
+            if sample.training_segments:
+                tokens = []
+                for segment_index, segment in enumerate(sample.training_segments):
+                    segment_tokens = [0.0] * segment["response_length"]
+                    for detail, value in zip(details[i], values, strict=True):
+                        if detail["segment_index"] == segment_index:
+                            begin, end = detail["response_span"]
+                            segment_tokens[begin:end] = [value] * (end - begin)
+                    validate_token_advantages(segment_tokens,
+                                              response_length=segment["response_length"],
+                                              loss_mask=segment["loss_mask"])
+                    segment["train_metadata"] = {
+                        "turn_credit_version": PROGRESS_DB_COUNT_V1,
+                        "token_advantages": segment_tokens,
+                    }
+                    tokens.extend(segment_tokens)
+                sample.train_metadata = sample.training_segments[0]["train_metadata"]
+            else:
+                tokens = attach_turn_credit_v2_token_advantages(sample, values)
+                sample.train_metadata = {"turn_credit_version": PROGRESS_DB_COUNT_V1,
+                                         "token_advantages": tokens}
+            sample.metadata["tau2_progress_group_unavailable_reasons"] = reasons
+            sample.metadata["tau2_binary_zero_variance_group"] = not any(outcome)
+            group_signal |= any(value != 0 for value in tokens)
+        for sample in group:
+            sample.metadata["tau2_turn_credit_group_has_signal"] = group_signal
+
+    dump_path = os.environ.get("TAU2_PROGRESS_DIAGNOSTICS_PATH")
+    if dump_path:
+        path = Path(dump_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as stream:
+            for sample in samples:
+                stream.write(json.dumps({"group_index": sample.group_index,
+                                         "sample_index": sample.index,
+                                         "task_id": sample.metadata.get("tau2_task_id"),
+                                         "domain": sample.metadata.get("tau2_domain"),
+                                         "reward": float(sample.get_reward_value(args)),
+                                         "group_has_signal": sample.metadata["tau2_turn_credit_group_has_signal"],
+                                         "trainable_tokens": sample.metadata.get("tau2_response_tokens", sum(sample.loss_mask)),
+                                         "binary_zero_variance": sample.metadata["tau2_binary_zero_variance_group"],
+                                         "progress_unavailable_reasons": sample.metadata["tau2_progress_group_unavailable_reasons"],
+                                         "scoring_seconds": sample.metadata.get("tau2_progress_scoring_seconds", sample.metadata["tau2_progress"].get("scoring_seconds", 0)),
+                                         "rollout_attempts": sample.metadata.get("tau2_rollout_attempts", 1),
+                                         "turns": sample.metadata["tau2_turn_credits"]}, ensure_ascii=False) + "\n")
+
+
 def tau2_reward_post_process(
     args, samples: list[Sample] | list[list[Sample]]
 ) -> tuple[list[float], list[float]]:
@@ -1124,6 +1232,9 @@ def tau2_reward_post_process(
         _arg_or_default(args, "grpo_std_normalization", True)
     )
     n_samples_per_prompt = int(_arg_or_default(args, "n_samples_per_prompt", 1))
+
+    if version == PROGRESS_DB_COUNT_V1:
+        attach_progress_group_advantages(args, flat)
 
     if version == TURN_CREDIT_V2:
         if advantage_estimator != "grpo":
@@ -1224,7 +1335,7 @@ def turn_aware_grpo_advantage(args, rollout_data: dict[str, Any]) -> None:
                 f"train metadata for sample {sample_index} is not a dictionary"
             )
         version = sample_metadata.get("turn_credit_version", TURN_CREDIT_V1)
-        if version == TURN_CREDIT_V2:
+        if version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
             token_advantages = validate_token_advantages(
                 sample_metadata.get("token_advantages"),
                 response_length=int(response_length),

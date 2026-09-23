@@ -177,7 +177,7 @@ Paths are relative to the repo root (`slime/`).
 **Install/load job-manager**
 
 ```bash
-bash /mnt/afs/users/admin/job-manager/bin/job install -u fush
+bash /mnt/afs/users/fush/job install -u fush
 source ~/.bashrc
 ```
 
@@ -206,18 +206,18 @@ not need the project setup performed by `scripts/submit.sh`.
 **View jobs**
 
 ```bash
-job list -L 20        # recent jobs
-job show <jobid>      # details and log paths
-job track <jobid>     # live run log; Ctrl-C does not stop the job
-job wait <jobid>      # block until completion; prefer this for agent workflows
-job queue             # queue state
-job quota             # quota and current usage
+/mnt/afs/users/fush/job list -L 20        # recent jobs
+/mnt/afs/users/fush/job show <jobid>      # details and log paths
+/mnt/afs/users/fush/job track <jobid>     # live run log; Ctrl-C does not stop the job
+/mnt/afs/users/fush/job wait <jobid>      # block until completion; prefer this for agent workflows
+/mnt/afs/users/fush/job queue             # queue state
+/mnt/afs/users/fush/job quota             # quota and current usage
 ```
 
 **Stop a job**
 
 ```bash
-job stop <jobid>
+/mnt/afs/users/fush/job stop <jobid>
 ```
 
 ## Conventions
@@ -228,7 +228,7 @@ job's `run_*.log`, `submit_*.log`, `jobm.log`, and submitted-script copy to:
 - `output/experiments/<experiment>/jobs/<job-directory>/` when run with `--experiment <name>`, or
 - `output/jobs/<job-directory>/` for ad-hoc runs (no `--experiment`).
 
-Use `job show <jobid>` for the exact directory. `scripts/submit.sh` also keeps
+Use `/mnt/afs/users/fush/job show <jobid>` for the exact directory. `scripts/submit.sh` also keeps
 its project-script snapshot and client submission log in a sibling `fsh-*`
 directory; the actual run log is in the job-manager directory.
 

@@ -763,11 +763,19 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
 
     # Apply on-policy distillation KL penalty to advantages (orthogonal to advantage estimator)
     if args.use_opd:
+        opd_student_log_probs = log_probs
+        if getattr(args, "opd_use_behavior_logprobs", False):
+            # Historical experimental surrogate. With stale behavior this differs
+            # from current-student reverse KL, even when TIS corrects the token
+            # sampling distribution. Keep it opt-in for reproducing those runs.
+            if not rollout_log_probs:
+                raise ValueError("--opd-use-behavior-logprobs requires rollout_log_probs in rollout_data.")
+            opd_student_log_probs = rollout_log_probs
         apply_opd_kl_to_advantages(
             args=args,
             rollout_data=rollout_data,
             advantages=advantages,
-            student_log_probs=log_probs,
+            student_log_probs=opd_student_log_probs,
         )
 
     # TODO: OpenRLHF always does advantages normalization but veRL doesn't seem to do it.
@@ -839,12 +847,14 @@ def vanilla_tis_function(
     old_log_probs = torch.cat(train_log_probs, dim=0)
     tis = torch.exp(old_log_probs - rollout_log_probs)
     tis_abs = (torch.exp(old_log_probs - rollout_log_probs) - 1).abs()
-    tis_weights = torch.clamp(tis, min=args.tis_clip_low, max=args.tis_clip)
+    tis_weights = torch.clamp(tis, min=args.tis_clip_low, max=args.tis_clip).detach()
     tis_clipfrac = (tis_weights != tis).float()
     metrics = {
         "tis": tis.clone().detach(),
         "tis_clipfrac": tis_clipfrac.clone().detach(),
         "tis_abs": tis_abs.clone().detach(),
+        "tis_weight": tis_weights,
+        "tis_weight_squared": tis_weights.square(),
     }
     pg_loss = pg_loss * tis_weights
     return pg_loss, loss_masks, metrics

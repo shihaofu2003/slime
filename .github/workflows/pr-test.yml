@@ -567,6 +567,14 @@ jobs:
             },
             {
               "num_gpus": 0,
+              "test_file": "test_tau2_continuous.py"
+            },
+            {
+              "num_gpus": 0,
+              "test_file": "test_tau2_opd_training.py"
+            },
+            {
+              "num_gpus": 0,
               "test_file": "test_cp_utils.py"
             },
             {
@@ -725,6 +733,8 @@ jobs:
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install pytest numpy packaging pyyaml omegaconf tqdm httpx requests ray pybase64 pylatexenc sympy aiohttp pillow safetensors
+
+          pip install transformers tokenizers
 
 
       - name: Install

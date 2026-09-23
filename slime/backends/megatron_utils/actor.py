@@ -28,7 +28,7 @@ from ...utils.profile_utils import TrainProfiler
 from ...utils.tensor_backper import TensorBackuper
 from .checkpoint import load_checkpoint
 from .cp_utils import prepare_routed_experts_for_routing_replay, slice_log_prob_with_cp
-from .data import DataIterator, get_data_iterator, log_perf_data, log_rollout_data
+from .data import DataIterator, get_data_iterator, log_opd_post_update, log_perf_data, log_rollout_data
 from .hf_checkpoint_saver import save_hf_model_to_path
 from .initialize import init, is_megatron_main_rank
 from .loss import compute_advantages_and_returns, get_log_probs_and_entropy, get_values
@@ -500,6 +500,13 @@ class MegatronTrainRayActor(TrainRayActor):
                     data_iterator,
                     num_microbatches,
                     global_batch_sizes,
+                )
+
+            opd_log_interval = getattr(self.args, "opd_post_update_log_interval", 0)
+            if self.args.use_opd and opd_log_interval > 0 and (rollout_id + 1) % opd_log_interval == 0:
+                post_update = self.compute_log_prob(data_iterator, num_microbatches, store_prefix="post_update_")
+                log_opd_post_update(
+                    rollout_id, self.args, rollout_data, post_update.get("post_update_log_probs"),
                 )
 
             self.prof.step(rollout_id=rollout_id)

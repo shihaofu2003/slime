@@ -8,7 +8,8 @@ SERVICE_AGENT_ROOT="${SERVICE_AGENT_ROOT:-/mnt/afs/users/fush/projects/ServiceAg
 PROJECT_ROOT="${PROJECT_ROOT:-${SERVICE_AGENT_ROOT}/slime}"
 EXAMPLE_DIR="${PROJECT_ROOT}/examples/tau2-bench"
 OFFICIAL_DIR="${EXAMPLE_DIR}/eval/official"
-export PYTHONPATH="${SERVICE_AGENT_ROOT}/tau2-bench/src:${PYTHONPATH:-}"
+TAU2_SRC="${TAU2_SRC:-${SERVICE_AGENT_ROOT}/tau2-bench/src}"
+export PYTHONPATH="${TAU2_SRC}:${PYTHONPATH:-}"
 
 MODEL_PATH="${MODEL_PATH:-${SERVICE_AGENT_ROOT}/models/Qwen3-4B-Instruct-2507}"
 MODEL_NAME="${MODEL_NAME:-$(basename "${MODEL_PATH}")}"
@@ -404,7 +405,7 @@ if [[ -n "${NAMESPACE_PROBE_OUTPUT}" ]]; then
     # the promotion gate consumes both artifacts and makes the decision.
     NAMESPACE_PROBE_ARGS+=(--no-enforce)
   fi
-  PYTHONPATH="${PROJECT_ROOT}:${EXAMPLE_DIR}/shared:${EXAMPLE_DIR}/analysis:${SERVICE_AGENT_ROOT}/tau2-bench/src:${PYTHONPATH:-}" \
+  PYTHONPATH="${PROJECT_ROOT}:${EXAMPLE_DIR}/shared:${EXAMPLE_DIR}/analysis:${TAU2_SRC}:${PYTHONPATH:-}" \
     python3 "${EXAMPLE_DIR}/analysis/run_namespace_probes.py" \
       --checkpoint "${MODEL_PATH}" \
       --api-base "http://${HOST}:${PORT}/generate" \

@@ -2,6 +2,29 @@
 
 One entry per experiment: name, purpose, link to its README.
 
+- [tau2-opd-four-domain-20260923](../experiments/tau2-opd-four-domain-20260923/README.md) — Student23193 completed full pure OPD from SFT4505 at2e-6,buffer32,160 updates for2524 source tasks. Controlled seed300 checkpoint evaluation selects Update80:28.55/46.70/14.72% pass@1/pass@4(any)/pass^4 and93.4% target-teacher pass@1 retention. User23043 and experts23191 were stopped; seed302/303/304 submissions were stopped.
+
+- [tau2-opd-bounded-lr-20260922](../experiments/tau2-opd-bounded-lr-20260922/README.md) — Completed both60-update arms and1,600 official simulations. Overall pass@1:2e-6 55.125%,5e-6 49.75%; retain2e-6,with replicated Retail consistency gains and unresolved Airline pass^4. User/experts remain persistent; scoring probe deferred. [Results](../experiments/tau2-opd-bounded-lr-20260922/RESULTS.md).
+
+- [tau2-opd-current-buffer-ab](../experiments/tau2-opd-current-buffer-ab/README.md) — Completed4,000 matched official simulations:buffer32 A versus unbounded B,LR2e-6/60 updates. A controls lag and retains teacher point estimates; Retail consistency improves over SFT,no clear A/B score winner. B resumed after cluster crash. [Analysis/next experiments](../experiments/tau2-opd-current-buffer-ab/ANALYSIS_AND_NEXT.md).
+
+- [tau2-opd-airline-retail-pilot](../experiments/tau2-opd-airline-retail-pilot/README.md) — Pure Airline/Retail OPD pilot from SFT4505 with a 4-GPU User service, domain-routed Airline/Retail teachers, an 8-GPU student, two-update smoke, then fresh 20-update pilot. v2: LR 1e-5, 60 updates; v3: behavior-logprob estimator. Current status in [OPD status](OPD_STATUS.md).
+
+## Cross-experiment analysis
+
+- [TAU2 async/sync speed and credit assignment](TAU2_ASYNC_SYNC_SPEED_CREDIT.md) — Full-stack speed estimate, matched async/sync performance comparison, and credit-assignment versus outcome-only GRPO evidence.
+- [OPD status](OPD_STATUS.md) — Completed two-domain LR comparison and current four-domain preparation,with persistent service jobs and evaluation comparison limits.
+
+- [tau2-domain-experts-sft4505-b128](../experiments/tau2-domain-experts-sft4505-b128/README.md) — Corrected SFT4505 four-domain experts:job22033 Airline60/Retail30/Telecom20;job22034 Banking30;each8 GPUs,shared refreshed4-GPU User22031. Fresh optimizer per domain,LR2e-6/batch128/progress1;two-update smoke checks before formal training. Full checkpoint four-domain evaluations and30-minute supervision;maximum two concurrent8-GPU eval jobs. Retail iter9 unchanged retry:22377 (2026-09-21). Retail iter19/iter29 eval:22448/22450 (2026-09-21). Telecom iter9/iter19 eval:22494/22495 (2026-09-21).
+- [tau2-sft-areal3-banking-simplified-full-20260920](../experiments/tau2-sft-areal3-banking-simplified-full-20260920/README.md) — New four-domain SFT data:30376 unchanged AReaL rows +5672 full simplified Banking rows=36048. Three-domain comparison against old mixed data:zero differing lines. SFT21863 SUCCEEDED4506 updates,final iter4505;runtime2h49m,Final iter4505 eval21925 SUCCEEDED788/788,zero infra errors;Banking4.12/8.25/1.03%,four-domain27.92/43.15/13.20%. README documents SFT length selection versus RL16K overflow,including user-reported batch10 observations.
+- [tau2-domain-experts-fast-b128](../experiments/tau2-domain-experts-fast-b128/README.md) — Historical SFT4673 experts;job21629 stopped at user request2026-09-20 after Airline60/Retail30/Telecom20/Banking14 updates. Superseded by corrected SFT4505 initialization.
+
+- [tau2-airline-db-count-tuning](../experiments/tau2-airline-db-count-tuning/README.md) — Airline-only RL from SFT4673, LR2e-6/batch128; [raw/SFT/RL comparisons](../experiments/tau2-airline-db-count-tuning/reports/comparison.md). Fast21168 iter19:Airline53.75/80/30%,20 updates in80.46min (4.60x old370.22min). Uniform-source control21429 SUCCEEDED20 updates in71.86min (5.15x), but evaluation21530 Airline is42.50/60/30%; uniform replacement is not selected and the generic source default is restored to shuffled/retry. At2026-09-19 20:28 CST,21530 remains RUNNING,338/400 evaluated (Airline80/80,Retail138/160,Telecom120/160). [Quality diagnosis](../experiments/tau2-airline-db-count-tuning/reports/quality-diagnosis/README.md); full jobs/logs in experiment README.
+
+- [tau2-async-db-count-four-domain](../experiments/tau2-async-db-count-four-domain/README.md) — Four-domain asynchronous GRPO versus DB-count from full-domain SFT. Five-update smoke and two-update resume passed. Both inference context-overflow response forms now handled; cluster job 19375 passed 112 tests and rollout preflight. Fresh serial job 19376 completed 11 updates and saved iter9 with rollout state; real context overflow entered retry and training continued; hourly / every-50-update evaluation monitor active (PID 307314); automatic 04:17 check verified 18 completed updates and iter9 saved. Periodic eval latest job: 19462 (vanilla-grpo iter49). User requested concurrent DB-count: standalone job 19469 (556 updates, fresh SFT, stamp 20260915_082300), queued for 8 GPUs; original jobs preserved. Reward curve CPU job: 19472. 2026-09-15 restart: prior jobs 19376/19469/19462 stopped; both recipes now reject uniform official outcomes. Preflight job 19473. New mixed-outcome arms: 19474 vanilla / 19475 credit, stamp 20260915_091500; preflight 112 tests passed; separate hourly monitors enabled. W&B HTTP 500 caused both startup failures (0 updates); offline replacements 19476/19477, stamp 20260915_092700, hourly monitors active. Current two-arm reward curves: CPU job 19514; final curves required after 556 updates. Prefilter reward PNG/CSV and trajectory-triggered watcher: CPU verification 19532. Current mixed-outcome iter49 four-domain evaluations: 19743 GRPO / 19745 DB-count, submitted 2026-09-15 21:22. DB-count iter49 eval resume 19789 (AUTO_RESUME=1), after 19775 EOFError; 399 results retained. 2026-09-16: all running jobs stopped at user request; artifacts retained. Post-pause reward-curve refresh: CPU job 19945. Credit GRPO iter119 (120 updates) four-domain eval: job 19947, AUTO_RESUME=1.
+
+- [tau2-areal-async-rl](../experiments/tau2-areal-async-rl/README.md) — matched 8-GPU synchronous/asynchronous GRPO with uniform task draws, recorded behavior tokens and bounded policy lag;20-update comparison completed with training speedup1.060×;100-update job18009 completed both training arms and both sync evaluations, then was intentionally stopped during its redundant async evaluation; independent async job18161 completed both seeds; lag/pool ablation retry18434 completed three 20-update arms; evaluation18687 failed on output-directory collision, fixed single-seed evaluation18811 completed; unlimited-lag pool20 train200 job18996 and Airline-only counterpart18997 failed preflight; fixed and retried as19001; Airline iter19 eval19014 reclaimed; retry19019 hit existing conversion output; retry19033 failed on single-domain slot borrowing, now disabled; iter99 seed300 evaluations19097 (mixed three-domain) and19098 (Airline) submitted; training18996/19001 stopped at user request to release GPUs for evaluation; single-domain eval19098 stopped and replaced by19101 using unchanged three-domain evaluation, matching19097; both completed, seed300 SFT/mixed/Airline pass@1=56.25/59.25/55.00%, pass^4=30/27/21%. Mixed iter69 evaluation19245 completed: seed300 58.25/85/26%, zero infrastructure errors.
+
 - [tau2-banking-simplified-full-sft](../experiments/tau2-banking-simplified-full-sft/README.md) —
   raw-model SFT on all 5,672 simplified Banking rows followed by Banking evaluation.
 
@@ -389,3 +412,15 @@ One entry per experiment: name, purpose, link to its README.
 - [vitabench-qwen3-4b-instruct-2507-full-eval](../experiments/vitabench-qwen3-4b-instruct-2507-full-eval/README.md) —
   complete Chinese VitaBench evaluation of raw Qwen3-4B-Instruct-2507 with
   local non-thinking Qwen3.6-27B User and Evaluator roles on eight 80GB GPUs.
+
+- [two-node-gpu-probe](../experiments/two-node-gpu-probe/README.md) — two-node GPU submission probe; 2 × 8 GPU normal task replacing the stopped spot task.
+
+- [serve](../experiments/serve/README.md) — long-running single-GPU sglang
+  serving of Qwen3-4B-Instruct-2507 on the cluster with an OpenAI-compatible
+  endpoint reachable off-cluster.
+
+- [cross-job-probe](../experiments/cross-job-probe/README.md) — one-GPU probe
+  confirming a job container can call the sglang server deployed in a different
+  job over the pod network (TCP, health, chat, tool call all pass).
+
+- [tau2-external-user-pool](../experiments/tau2-external-user-pool/README.md) — Two TP2 Qwen3.6-27B User replicas on4 GPUs;old20873 stopped2026-09-20,replacement22031 submitted for both SFT4505 expert jobs. API uses the replacement job compute IP.

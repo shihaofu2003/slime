@@ -117,6 +117,7 @@ class Sample:
     label: str | None = None
     reward: float | dict[str, Any] | None = None
     loss_mask: list[int] | None = None
+    training_segments: list[dict] | None = None
     weight_versions: list[str] = field(default_factory=list)
     rollout_log_probs: list[float] | None = None  # Log probabilities from rollout engine
     # Ragged top-p nucleus token ids replayed from rollout sampling. For response
@@ -248,6 +249,8 @@ class Sample:
 
     @property
     def effective_response_length(self):
+        if self.training_segments:
+            return sum(sum(segment["loss_mask"]) for segment in self.training_segments)
         return sum(self.loss_mask) if self.loss_mask is not None else self.response_length
 
     def append_response_tokens(

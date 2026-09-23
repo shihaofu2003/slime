@@ -716,7 +716,7 @@ def _evaluate_domain(payload: dict[str, Any], domain: str) -> dict[str, Any]:
     )
     domain_summary = {
         "save_to": save_to,
-        "results_file": f"data/simulations/{save_to}/results.json",
+        "results_file": str(Path("data/simulations") / save_to / "results.json"),
         "metrics": metrics_dict,
         "pass_metrics": _pass_metrics(results, args.num_trials),
         "retrieval_config": retrieval_config,

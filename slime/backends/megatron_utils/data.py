@@ -245,6 +245,37 @@ def get_data_iterator(rollout_data: RolloutBatch) -> list[DataIterator]:
     return [DataIterator(rollout_data, micro_batch_indices) for _ in range(vpp_size)]
 
 
+def log_opd_post_update(rollout_id, args, rollout_data, post_update_log_probs):
+    """Measure the actual update on the collected batch, without changing loss.
+
+    The weighted K2 value is a local policy-change diagnostic with clipped TIS,
+    not an exact KL on fresh post-update trajectories.
+    """
+    if not mpu.is_pipeline_last_stage() or mpu.get_tensor_model_parallel_rank() != 0:
+        return
+    before = torch.cat(rollout_data["log_probs"]).detach()
+    after = torch.cat(post_update_log_probs).detach()
+    behavior = torch.cat(rollout_data["rollout_log_probs"]).detach()
+    weights = (before - behavior).exp().clamp(min=args.tis_clip_low, max=args.tis_clip)
+    delta = after - before
+    reduce = get_sum_of_sample_mean(
+        rollout_data["total_lengths"], rollout_data["response_lengths"],
+        rollout_data["loss_masks"], rollout_data["rollout_mask_sums"],
+    )
+    metrics = {}
+    for key, value in {
+        "post_update_logprob_abs_diff": delta.abs(),
+        "post_update_tis_weighted_k2": weights * delta.square() / 2,
+    }.items():
+        metrics[key] = rollout_log_metric_contribution(
+            reduce(value).item(),
+            cp_size=mpu.get_context_parallel_world_size(),
+            num_rollouts_in_rollout=sum(rollout_data["global_batch_sizes"]),
+            dp_size=mpu.get_data_parallel_world_size(with_context_parallel=False),
+        )
+    gather_log_data("opd", args, rollout_id, metrics)
+
+
 def log_rollout_data(
     rollout_id: int,
     args: Namespace,
@@ -277,9 +308,14 @@ def log_rollout_data(
         num_rollouts_in_rollout = sum(rollout_data["global_batch_sizes"])
 
         for key, val in rollout_data.items():
+            if key == "trajectory_rewards":
+                continue
+            if key == "raw_reward":
+                val = rollout_data.get("trajectory_rewards", val)
             if key in [
                 "tokens",
                 "multimodal_train_inputs",
+                "metadata",
                 "loss_masks",
                 "sample_indices",
                 "rollout_ids",
@@ -485,7 +521,7 @@ def log_passrate(rollout_id: int, args: Namespace, rollout_data: RolloutBatch) -
                 continue
 
             log_dict |= compute_pass_rate(
-                flat_rewards=val,
+                flat_rewards=rollout_data.get("trajectory_rewards", val),
                 group_size=args.n_samples_per_prompt,
                 num_groups=args.rollout_batch_size,
             )

@@ -460,6 +460,7 @@ class RolloutManager:
             runtime_env={"env_vars": add_default_ray_env_vars()},
         ).remote()
         self.rollout_id = -1
+        self.producer = None
 
         self._health_monitors = []
         if not self.args.debug_train_only and self.args.use_fault_tolerance:
@@ -496,7 +497,23 @@ class RolloutManager:
             except Exception as e:
                 logger.warning(f"CI Fault Injection failed: {e}")
 
+    def start_producer(self, start_rollout_id):
+        self.args.start_rollout_id = start_rollout_id
+        self.producer = load_function(self.args.rollout_producer_path)(self.args, self.data_source)
+        self.generate_rollout = self.producer.generate
+
+    def finish_producer_training(self):
+        self.producer.finish_training()
+
+    def pause_producer(self):
+        self.producer.pause()
+
+    def resume_producer(self, version):
+        self.producer.resume(version)
+
     def dispose(self):
+        if self.producer is not None:
+            self.producer.close()
         for monitor in self._health_monitors:
             monitor.stop()
         logging_utils.finish_tracking(self.args)
@@ -551,7 +568,8 @@ class RolloutManager:
             self._try_ci_fault_injection()
         data, metrics = self._get_rollout_data(rollout_id=rollout_id)
         self._save_debug_rollout_data(data, rollout_id=rollout_id, evaluation=False)
-        _log_rollout_data(rollout_id, self.args, data, metrics, time.time() - start_time)
+        rollout_duration = (metrics or {}).get("rollout/producer_duration_seconds", time.time() - start_time)
+        _log_rollout_data(rollout_id, self.args, data, metrics, rollout_duration)
         if self.args.debug_rollout_only:
             # if debug rollout only, we don't convert samples to train data and directly return
             return
@@ -570,7 +588,10 @@ class RolloutManager:
         _log_eval_rollout_data(rollout_id, self.args, data, result.metrics)
 
     def save(self, rollout_id):
-        self.data_source.save(rollout_id)
+        if self.producer is not None:
+            self.producer.save(rollout_id)
+        else:
+            self.data_source.save(rollout_id)
 
     def load(self, rollout_id=None):
         self.data_source.load(rollout_id)
@@ -718,6 +739,12 @@ class RolloutManager:
             return self.custom_convert_samples_to_train_data_func(self.args, samples)
 
         raw_rewards, rewards = self._post_process_rewards(samples)
+        trajectory_rewards = list(raw_rewards)
+
+        if any(getattr(sample, "training_segments", None) for sample in samples):
+            from slime.rollout.agent_tokens import expand_training_segments
+
+            samples, raw_rewards, rewards = expand_training_segments(samples, raw_rewards, rewards)
 
         assert len(raw_rewards) == len(samples)
         assert len(rewards) == len(samples)
@@ -825,6 +852,8 @@ class RolloutManager:
         if samples[0].teacher_log_probs is not None:
             train_data["teacher_log_probs"] = [sample.teacher_log_probs for sample in samples]
 
+        if any(getattr(sample, "training_segments", None) for sample in samples):
+            train_data["trajectory_rewards"] = trajectory_rewards
         return train_data
 
     def set_train_parallel_config(self, config: dict):
@@ -882,7 +911,7 @@ class RolloutManager:
                     continue
                 rollout_data[key] = [data[key][j] for j in partition]
             # keys that need to be splited at train side
-            for key in ["raw_reward", "total_lengths"]:
+            for key in ["raw_reward", "total_lengths", "trajectory_rewards"]:
                 if key not in data:
                     continue
                 rollout_data[key] = data[key]
@@ -1353,7 +1382,12 @@ def compute_perf_metrics_from_samples(args, samples, rollout_time):
             rollout_time - mean_non_generation_time
         )
 
-    token_perf([sample.response_length for sample in samples], non_generation_time, key="")
+    response_lengths = [
+        sum(segment["response_length"] for segment in sample.training_segments)
+        if sample.training_segments else sample.response_length
+        for sample in samples
+    ]
+    token_perf(response_lengths, non_generation_time, key="")
     token_perf([sample.effective_response_length for sample in samples], non_generation_time, key="effective_")
     log_dict |= _compute_sglang_request_perf_metrics(samples)
 

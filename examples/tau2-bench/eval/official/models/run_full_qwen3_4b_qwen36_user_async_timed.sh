@@ -14,7 +14,7 @@ export MODEL_PATH="${MODEL_PATH:-${SERVICE_AGENT_ROOT}/models/Qwen3-4B-Instruct-
 export MODEL_NAME="${MODEL_NAME:-Qwen3-4B-Instruct-2507-qwen36-user-async}"
 export TP="1"
 export MEM_FRACTION="0.85"
-export AGENT_REPLICA_CUDA_GROUPS="0;1"
+export AGENT_REPLICA_CUDA_GROUPS="${AGENT_REPLICA_CUDA_GROUPS:-0;1}"
 export AGENT_WORKER_PORT_BASE="31000"
 export AGENT_SGLANG_EXTRA_ARGS="--show-time-cost --enable-request-time-stats-logging"
 
@@ -22,7 +22,13 @@ export USER_MODEL_PATH="${SERVICE_AGENT_ROOT}/models/Qwen3.6-27B"
 export USER_MODEL="Qwen3.6-27B-tau2-user-nonthinking"
 export USER_TP="2"
 export USER_MEM_FRACTION="0.90"
-export USER_REPLICA_CUDA_GROUPS="2,3;4,5;6,7"
+if [[ "${USER_SGLANG:-1}" == "1" ]]; then
+  export USER_REPLICA_CUDA_GROUPS="2,3;4,5;6,7"
+else
+  # The external User service is supplied by the caller; do not advertise
+  # local User replicas to run_eval.sh in that mode.
+  export USER_REPLICA_CUDA_GROUPS=""
+fi
 export USER_WORKER_PORT_BASE="32000"
 # The User simulator is text-only. Qwen3.6 tool calls use Qwen3-Coder tags.
 export USER_SGLANG_EXTRA_ARGS="--dtype bfloat16 --context-length 65536 --language-only --max-running-requests 2 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --show-time-cost --enable-request-time-stats-logging"
@@ -51,13 +57,13 @@ export AGENT_TOP_P="1.0"
 export AGENT_MAX_TOKENS="${AGENT_MAX_TOKENS:-1200}"
 
 export RUN_STAMP="${RUN_STAMP:-$(date +%m%d_%H%M%S)}"
-export SAVE_PREFIX="tau2_official_${MODEL_NAME}_${EVAL_LABEL}_seed${SEED}_${RUN_STAMP}"
+export SAVE_PREFIX="${SAVE_PREFIX:-tau2_official_${MODEL_NAME}_${EVAL_LABEL}_seed${SEED}_${RUN_STAMP}}"
 export SUMMARY_OUTPUT="${SUMMARY_OUTPUT:-${EXPERIMENT_DIR}/eval/${EVAL_LABEL}/seed${SEED}_${RUN_STAMP}_summary.json}"
 export NAMESPACE_PROBE_OUTPUT=""
 
 start_epoch="$(date +%s)"
 echo "[tau2-qwen36-async] stage=wrapper_start epoch=${start_epoch} timestamp=$(date --iso-8601=seconds)"
-echo "[tau2-qwen36-async] topology=agent_2xtp1_gpu0_1,user_3xtp2_gpu2_7,domains_parallel agent_router_policy=${AGENT_ROUTER_POLICY} user_router_policy=${USER_ROUTER_POLICY} initial_domain_concurrency=${DOMAIN_CONCURRENCY} global_concurrency=${GLOBAL_CONCURRENCY} borrow_completed_domain_slots=${BORROW_COMPLETED_DOMAIN_SLOTS} num_tasks=${NUM_TASKS:-all} trials=${NUM_TRIALS}"
+echo "[tau2-qwen36-async] topology=agent_groups:${AGENT_REPLICA_CUDA_GROUPS},user_sglang:${USER_SGLANG:-1},domains_parallel agent_router_policy=${AGENT_ROUTER_POLICY} user_router_policy=${USER_ROUTER_POLICY} initial_domain_concurrency=${DOMAIN_CONCURRENCY} global_concurrency=${GLOBAL_CONCURRENCY} borrow_completed_domain_slots=${BORROW_COMPLETED_DOMAIN_SLOTS} num_tasks=${NUM_TASKS:-all} trials=${NUM_TRIALS}"
 bash "${OFFICIAL_DIR}/run_eval.sh"
 end_epoch="$(date +%s)"
 echo "[tau2-qwen36-async] stage=wrapper_end epoch=${end_epoch} elapsed_seconds=$((end_epoch - start_epoch)) timestamp=$(date --iso-8601=seconds)"

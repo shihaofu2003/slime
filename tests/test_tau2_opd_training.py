@@ -173,6 +173,56 @@ def test_training_forward_delivers_opd_log_ratio_to_loss(monkeypatch):
     assert loss(logits) is values
 
 
+@pytest.mark.parametrize("use_opd", [False, True])
+@pytest.mark.parametrize("use_tis", [False, True])
+def test_policy_loss_preserves_token_credit_with_optional_opd_metrics(use_opd, use_tis):
+    def log_probs_and_entropy(logits, **_kwargs):
+        logp = logits.log_softmax(-1)
+        return None, {"log_probs": [logp[:, 0]], "entropy": [-(logp.exp() * logp).sum(-1)]}
+
+    ns = {"torch": torch, "mpu": SimpleNamespace(get_context_parallel_world_size=lambda: 1),
+          "get_log_probs_and_entropy": log_probs_and_entropy}
+    load_functions("slime/backends/megatron_utils/data.py", {"get_next"}, ns)
+    load_functions("slime/backends/megatron_utils/cp_utils.py", {"get_sum_of_sample_mean"}, ns)
+    load_functions("slime/utils/ppo_utils.py", {"compute_policy_loss", "compute_approx_kl"}, ns)
+    load_functions("slime/backends/megatron_utils/loss.py",
+                   {"policy_loss_function", "get_rollout_top_p_logprob_kwargs", "vanilla_tis_function"}, ns)
+    args = SimpleNamespace(use_opd=use_opd, use_rollout_logprobs=False, rollout_top_p=1.0,
+                           advantage_estimator="grpo", use_opsm=False, eps_clip=0.2, eps_clip_high=0.2,
+                           get_mismatch_metrics=False, use_tis=use_tis, custom_tis_function_path=None,
+                           tis_clip=2, tis_clip_low=0, calculate_per_token_loss=False,
+                           entropy_coef=0, use_kl_loss=True, use_unbiased_kl=False,
+                           kl_loss_type="k2", kl_loss_coef=0)
+    logits = torch.tensor([[0.2, -0.1], [-0.3, 0.4]], requires_grad=True)
+    old_log_probs = logits.detach().log_softmax(-1)[:, 0]
+    # Different Assistant turns carry different credit on their response tokens.
+    token_credit = torch.tensor([0.75, -0.25])
+    data = {"advantages": [token_credit], "log_probs": [old_log_probs],
+            "rollout_log_probs": [old_log_probs.clone()], "ref_log_probs": [old_log_probs.clone()],
+            "unconcat_tokens": [torch.tensor([1, 0, 0])], "total_lengths": [3], "response_lengths": [2],
+            "loss_masks": [torch.ones(2)], "rollout_mask_sums": torch.tensor([2.0])}
+    if use_opd:
+        data["opd_reverse_kl"] = [torch.tensor([0.2, 0.4])]
+    iterator = SimpleNamespace(rollout_data=data, micro_batch_indices=[[0]], offset=0)
+    # The production iterator materializes absent optional keys as None.
+    batch = ns["get_next"](iterator, [*data, "opd_reverse_kl"])
+    reducer = ns["get_sum_of_sample_mean"](
+        batch["total_lengths"], batch["response_lengths"], batch["loss_masks"], batch["rollout_mask_sums"])
+    loss, metrics = ns["policy_loss_function"](args, batch, logits, reducer)
+    expected = -((logits.log_softmax(-1)[:, 0] - old_log_probs).exp() * token_credit).mean()
+    expected_grad = torch.autograd.grad(expected, logits, retain_graph=True)[0]
+    loss.backward()
+    torch.testing.assert_close(loss.detach(), expected.detach())
+    torch.testing.assert_close(logits.grad, expected_grad)
+    assert torch.isfinite(logits.grad).all() and logits.grad.norm() > 0
+    torch.testing.assert_close(batch["advantages"][0], token_credit)
+    if use_opd:
+        assert metrics["opd_reverse_kl"].item() == pytest.approx(0.3)
+    else:
+        assert batch["opd_reverse_kl"] is None
+        assert "opd_reverse_kl" not in metrics
+
+
 @pytest.mark.parametrize("interval,step,expected", [(0, 9, False), (10, 8, False), (10, 9, True)])
 def test_post_update_forward_runs_after_optimizer_at_requested_interval(interval, step, expected):
     events = []

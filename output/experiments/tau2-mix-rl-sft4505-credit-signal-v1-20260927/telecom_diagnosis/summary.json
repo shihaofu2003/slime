@@ -1,0 +1,36 @@
+{
+  "completed_groups": 1628,
+  "completed_trajectories": 13024,
+  "telecom_trajectories": 1336,
+  "telecom_groups": 167,
+  "pool_tasks": 271,
+  "default_db_tasks": 205,
+  "stale_reference_tasks": 136,
+  "uniform_prefilter_reward_upper_bound": 0.4981549815498155,
+  "stale_reference_trajectories": 744,
+  "stale_reference_successes": 0.0,
+  "all_environment_passes": 808,
+  "reward_successes": 426,
+  "env_pass_but_reward_zero": 382,
+  "db_env_pass_but_reward_zero": 357,
+  "matched_controls": {
+    "credit": {
+      "groups": 167,
+      "correlation": 0.9524093390535765,
+      "old_affected_trajectories": 2133,
+      "old_affected_successes": 0.0
+    },
+    "grpo": {
+      "groups": 167,
+      "correlation": 0.9449088865801732,
+      "old_affected_trajectories": 2035,
+      "old_affected_successes": 0.0
+    },
+    "credit_repeat": {
+      "groups": 167,
+      "correlation": 0.9548606318176451,
+      "old_affected_trajectories": 2036,
+      "old_affected_successes": 0.0
+    }
+  }
+}

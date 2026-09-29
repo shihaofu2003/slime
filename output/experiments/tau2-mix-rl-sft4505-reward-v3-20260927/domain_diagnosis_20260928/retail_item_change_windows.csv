@@ -1,0 +1,5 @@
+period,item_change,groups,reward
+first400,False,81,0.5308641975308642
+first400,True,20,0.33125
+last400,False,55,0.625
+last400,True,24,0.2864583333333333

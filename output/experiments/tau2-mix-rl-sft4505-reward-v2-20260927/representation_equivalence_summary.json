@@ -1,0 +1,21 @@
+{
+  "counts": {
+    "json_format": {
+      "tasks": 209,
+      "action_match_changed": 209,
+      "reward_changed": 17,
+      "one_to_zero": 17,
+      "tasks_with_tool_errors": 0,
+      "same_db_state": 209
+    },
+    "numeric_inside_json": {
+      "tasks": 89,
+      "action_match_changed": 89,
+      "reward_changed": 21,
+      "one_to_zero": 21,
+      "tasks_with_tool_errors": 0,
+      "same_db_state": 73
+    }
+  },
+  "seconds": 72.2
+}

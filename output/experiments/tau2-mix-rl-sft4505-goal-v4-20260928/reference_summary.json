@@ -1,0 +1,34 @@
+{
+  "tasks": 542,
+  "modes": {
+    "golden_retrieval": 244,
+    "bm25": 298
+  },
+  "failed": [],
+  "initial_tokens_max": 4723,
+  "initial_context_over_16k": [],
+  "retail_partial_completion": [
+    {
+      "modified_items": 0,
+      "old_potential": -3,
+      "new_potential": -17.0
+    },
+    {
+      "modified_items": 1,
+      "old_potential": -2,
+      "new_potential": -9.0
+    },
+    {
+      "modified_items": 2,
+      "old_potential": -2,
+      "new_potential": -6.0
+    },
+    {
+      "modified_items": 3,
+      "old_potential": 0,
+      "new_potential": 0.0
+    }
+  ],
+  "seconds": 71.8,
+  "prompt_measurement": "Real TrainableSGLangAgent official-native prompt/tools and SFT4505 tokenizer"
+}

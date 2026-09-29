@@ -12,7 +12,7 @@ EVAL_LABEL="${EVAL_LABEL:-full}"
 # these same source weights. SGLang serves the original HF directory.
 export MODEL_PATH="${MODEL_PATH:-${SERVICE_AGENT_ROOT}/models/Qwen3-4B-Instruct-2507}"
 export MODEL_NAME="${MODEL_NAME:-Qwen3-4B-Instruct-2507-qwen36-user-async}"
-export TP="1"
+export TP="${TP:-1}"
 export MEM_FRACTION="0.85"
 export AGENT_REPLICA_CUDA_GROUPS="${AGENT_REPLICA_CUDA_GROUPS:-0;1}"
 export AGENT_WORKER_PORT_BASE="31000"
@@ -23,7 +23,7 @@ export USER_MODEL="Qwen3.6-27B-tau2-user-nonthinking"
 export USER_TP="2"
 export USER_MEM_FRACTION="0.90"
 if [[ "${USER_SGLANG:-1}" == "1" ]]; then
-  export USER_REPLICA_CUDA_GROUPS="2,3;4,5;6,7"
+  export USER_REPLICA_CUDA_GROUPS="${USER_REPLICA_CUDA_GROUPS:-2,3;4,5;6,7}"
 else
   # The external User service is supplied by the caller; do not advertise
   # local User replicas to run_eval.sh in that mode.

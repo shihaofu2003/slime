@@ -1,6 +1,20 @@
 # Tau2 OPD status
 
-Updated2026-09-23:the user fixed the selected recipe and submitted four-domain
+Updated2026-09-29: 用户已选定[修正后的 mix139 + Airline29 OPD 实验](../experiments/tau2-opd-mix139-airline-20260929/README.md)的 **iter59** 为最终 checkpoint。
+HF：[iter_0000059_hf](../experiments/tau2-opd-mix139-airline-20260929/arms/async/20260929_mix139-airline-opd/checkpoints/iter_0000059_hf)。
+
+官方四域 seed300 总体 pass@1/pass@4(any)/pass^4 = **31.98/48.22/14.21%**，
+相对实际 mix139 初始化为 **+0.76/−0.51/+0.51pp**。单 seed 点估计，不作显著性结论。
+实验 README 包含五个参考模型、六个已完成 OPD 检查点的完整对比和辅助诊断；
+8,668 条原始 reward 复算与 summary 一致；未完成或中止评测的分域成绩与进度按快照单列。
+Airline 相对初始化 +11.25/+5.00/+5.00pp；非 Airline 三域加权 pass@1 保留98.6%。
+
+训练25056已完成160次更新；User25054与专家25055已停止。学生与非 Airline 教师均为0925 mix139，
+Airline教师为iter29；LR2e-6、current-student logprob + TIS[0,2]、纯OPD、batch16/K1、
+buffer32且无固定 lag 步数上限。旧实验24983使用了错误的0927 iter129初始化，
+其结果不能作为本次 mix139 的直接前后对照。
+
+Historical update2026-09-23:the user fixed the selected recipe and submitted four-domain
 full distillation. Old experts23045 are
 STOPPED; replacement8-GPU experts23191 are RUNNING with all four endpoints ready.
 User23043 remains running. The
@@ -19,7 +33,7 @@ remains deferred.
 Original LR2e-6 job23048 stopped before training on an ordering-dependent unit
 test; its fixture was corrected and23062 completed from the still-fresh root.
 
-## Current recipe and findings
+## Historical recipe and findings (2026-09-22)
 
 SFT4505 student,Airline iter29/Retail iter9 teachers,current-student logprob
 advantage plus TIS,LR2e-6,batch16,K1,60 updates,buffer32. Current candidate is
@@ -67,7 +81,7 @@ and unchanged TIS it is not the current-student reverse-KL gradient; the
 contains the numerical counterexample. Negative unweighted log-ratio logs alone
 do not demonstrate a wrong TIS-weighted gradient.
 
-## Next work
+## Historical next work (2026-09-23)
 
 The submitted four-domain run starts from SFT4505 with Airline29/Retail9/Telecom9/
 Banking9 teachers,LR2e-6,buffer32,train/rollout seeds1235/43 and160 updates.

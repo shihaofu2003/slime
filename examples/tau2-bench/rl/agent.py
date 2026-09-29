@@ -231,7 +231,10 @@ class TrainableSGLangAgent(LLMAgent):
             llm_args=llm_args,
         )
         self.sglang_url = _with_generate_endpoint(self.llm_args["api_base"])
-        self.timeout = float(self.llm_args.get("timeout", os.environ.get("TAU2_AGENT_TIMEOUT", 600.0)))
+        timeout = os.environ.get("TAU2_AGENT_TIMEOUT", 600.0)
+        if domain == "banking":
+            timeout = os.environ.get("TAU2_BANKING_AGENT_TIMEOUT", timeout)
+        self.timeout = float(self.llm_args.get("timeout", timeout))
 
     @property
     def system_prompt(self) -> str:

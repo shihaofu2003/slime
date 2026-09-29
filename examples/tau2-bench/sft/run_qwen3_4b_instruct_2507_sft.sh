@@ -42,6 +42,8 @@ ROLLOUT_FUNCTION_PATH="${ROLLOUT_FUNCTION_PATH:-slime.rollout.sft_rollout.genera
 LABEL_KEY="${LABEL_KEY:-}"
 CONTEXT_PARALLEL_SIZE="${CONTEXT_PARALLEL_SIZE:-1}"
 TRAIN_SEED="${TRAIN_SEED:-1234}"
+TRAIN_ENTRYPOINT="${TRAIN_ENTRYPOINT:-train_async.py}"
+ROLLOUT_SEED="${ROLLOUT_SEED:-42}"
 START_ROLLOUT_ID="${START_ROLLOUT_ID:-}"
 WANDB_PROJECT="${WANDB_PROJECT:-slime-dev}"
 WANDB_GROUP="${WANDB_GROUP:-qwen3-4B-tau2-sft}"
@@ -113,6 +115,7 @@ SFT_ARGS=(
   --tool-key "${TOOL_KEY}"
   --loss-mask-type "${LOSS_MASK_TYPE}"
   --seed "${TRAIN_SEED}"
+  --rollout-seed "${ROLLOUT_SEED}"
   --rollout-shuffle
   --num-epoch "${NUM_EPOCH}"
   --rollout-batch-size "${ROLLOUT_BATCH_SIZE}"
@@ -244,7 +247,7 @@ fi
 
 ray job submit --address="http://127.0.0.1:8265" \
   --runtime-env-json="${RUNTIME_ENV_JSON}" \
-  -- python3 train_async.py \
+  -- python3 "${TRAIN_ENTRYPOINT}" \
   --actor-num-nodes 1 \
   --actor-num-gpus-per-node "${NUM_GPUS}" \
   "${MODEL_ARGS[@]}" \

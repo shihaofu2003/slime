@@ -468,3 +468,4 @@ Correction 2026-09-29: the student baseline is the 0925 progress-db-count run's 
   job over the pod network (TCP, health, chat, tool call all pass).
 
 - [tau2-external-user-pool](../experiments/tau2-external-user-pool/README.md) — Two TP2 Qwen3.6-27B User replicas on4 GPUs;old20873 stopped2026-09-20,replacement22031 submitted for both SFT4505 expert jobs. API uses the replacement job compute IP.
+- [tau2-sft-domain-generalization](../experiments/tau2-sft-domain-generalization/README.md): Mixed 与 Airline 专家已完成两 seed 全域评测；Airline-only 未超过 Mixed 的目标域表现，且 Retail 等跨域能力退化。包含原始模型 seed300 对照；Retail 已按用户要求停止，其余专家、raw seed301 与 CI 尚未完成。

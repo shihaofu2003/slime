@@ -1229,6 +1229,12 @@ exit 0
                         payload,
                         "banking_knowledge",
                     )
+                    with mock.patch.dict(os.environ, {"TAU2_DATA_DIR": "/tmp/private-tau2"}):
+                        private_result = run_eval._evaluate_domain(payload, "banking_knowledge")
+                    self.assertEqual(
+                        private_result["summary"]["results_file"],
+                        "/tmp/private-tau2/simulations/test_banking_knowledge_test_1trials/results.json",
+                    )
 
         self.assertEqual(
             captured_environment_kwargs,

@@ -16,6 +16,15 @@
   solely for formal completeness.
 - Validate only realistic failures that are likely to affect the result.
 
+## Current archive
+
+The user closed the experiment phase on 2026-09-29. Default work is repository,
+documentation, and website maintenance; new experiments require a new user task.
+The current selected model is the Mix RL iter139-initialized, dual-teacher OPD
+iter59. See `README.md`, `project_docs/README.md`, and
+`output/experiments/tau2-opd-mix139-airline-20260929/README.md` for the final
+configuration and results. The older project phases below are historical context.
+
 ## Project Overview
 
 - **Goal:** RL post-training of LLM agents in agentic / tool-use environments. The

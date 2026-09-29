@@ -1,0 +1,52 @@
+{
+  "evaluation_speed": {
+    "source": "project_docs/01_异步评测.md, section 4; jobs 11728, 11756, 11878",
+    "protocol": "Historical three-domain 100 tasks × 4 trials, 2026-09-01. User parser mismatch was fixed later; hardware allocation also changed.",
+    "labels": ["串行 · 4 GPU", "固定并发 · 8 GPU", "弹性并发 · 8 GPU"],
+    "minutes": [174.26, 52.84, 35.71],
+    "gpu_hours": [11.62, 7.05, 4.76]
+  },
+  "sft_quality": {
+    "source": "tau2-sft-raw-all-max16384/FINAL_REPORT.md; project_docs/02_AReaL三领域SFT数据质量治理.md section 7",
+    "protocol": "Three domains, 100 tasks × 4 trials, mean of evaluation seeds 300/301. Raw-all is a trained SFT control, not Raw Instruct.",
+    "labels": ["Raw-all SFT", "Processed SFT"],
+    "metrics": [[53.125, 82.5, 23], [55.75, 81, 28]],
+    "rl_pass_at_1": [22.75, 50.75]
+  },
+  "banking_tasks": {
+    "source": "project_docs/03_Banking任务构造.md section 4; final TaskContract counts",
+    "labels": ["事实抽取", "知识检索", "规则判断", "单步执行", "两能力组合", "中等流程", "完整流程"],
+    "train": [54, 27, 81, 109, 163, 81, 27],
+    "dev": [0, 0, 15, 15, 15, 15, 15],
+    "challenge": [0, 0, 0, 0, 0, 15, 15]
+  },
+  "banking_sft": {
+    "source": "project_docs/03_Banking任务构造.md section 8",
+    "protocol": "Banking-only SFT study. Official 97 tasks × 4 trials, seed300. Different checkpoint from four-domain SFT4505.",
+    "labels": ["Raw Instruct", "Banking SFT"],
+    "metrics": [[2.577319587628866, 4.123711340206185, 1.030927835051546], [4.381443298969073, 9.278350515463918, 1.030927835051546]]
+  },
+  "rl_speed": {
+    "source": "tau2-airline-db-count-tuning/reports/speed-diagnosis/long30-timeout60/speed_comparison.json; jobs 21033 and 21168",
+    "protocol": "Both asynchronous, same SFT4673 and batch128, first 20 updates, window excludes startup/final cleanup; 8 training GPUs plus external 4-GPU User.",
+    "labels": ["优化前异步", "优化后异步"],
+    "minutes": [370.22, 80.46],
+    "ready_wait_seconds": [868.65, 142.63],
+    "trainer_seconds": [81.85, 82.57],
+    "generator_utilization_percent": [21.54, 76.22],
+    "airline_pass_at_1": [52.5, 53.75]
+  },
+  "opd_buffer": {
+    "source": "tau2-opd-current-buffer-ab/ANALYSIS_AND_NEXT.md",
+    "protocol": "Historical Airline/Retail OPD, K1, batch16, LR2e-6. Unlimited-buffer arm resumed after a cluster crash. Observed policy lag, not configured step limits.",
+    "labels": ["不限制总缓冲", "总缓冲 32 组"],
+    "mean_lag": [8.29, 1.03],
+    "max_lag": [20, 4]
+  },
+  "opd_lr": {
+    "source": "tau2-opd-bounded-lr-20260922/RESULTS.md",
+    "protocol": "Historical Airline/Retail OPD, buffer32, matched training/rollout seeds 1235/43; three-domain evaluation, mean of seeds300/301.",
+    "labels": ["2e-6", "5e-6"],
+    "pass_at_1": [55.125, 49.75]
+  }
+}

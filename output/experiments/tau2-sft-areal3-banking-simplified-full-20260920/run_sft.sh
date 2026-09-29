@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PROJECT_ROOT=/mnt/afs/users/fush/projects/ServiceAgent/slime-async-tau2
+export SERVICE_AGENT_ROOT=/mnt/afs/users/fush/projects/ServiceAgent
+export SFT_DATA_PATH="${PROJECT_ROOT}/output/experiments/tau2-sft-areal3-banking-simplified-full-20260920/data/agent_areal3_banking_simplified_full_sft_20260920.jsonl"
+export HF_CHECKPOINT="${SERVICE_AGENT_ROOT}/models/Qwen3-4B-Instruct-2507"
+export TORCH_DIST_DIR="${SERVICE_AGENT_ROOT}/models/Qwen3-4B-Instruct-2507_torch_dist"
+export LOAD_DIR="${TORCH_DIST_DIR}"
+export SAVE_DIR="${SERVICE_AGENT_ROOT}/checkpoints/Qwen3-4B-Instruct-2507_tau2_agent_sft_areal3_banking_simplified_full_20260920"
+export NUM_GPUS=8
+export ROLLOUT_BATCH_SIZE=16
+export GLOBAL_BATCH_SIZE=16
+export NUM_EPOCH=2
+export SAVE_INTERVAL=400
+export MAX_TOKENS_PER_GPU=16384
+export LR=1e-5
+export MIN_LR=1e-6
+export LOSS_MASK_TYPE=qwen3_full
+export TOOL_KEY=tools
+export ROLLOUT_FUNCTION_PATH=slime.rollout.sft_rollout.generate_rollout
+export LABEL_KEY=""
+export CONTEXT_PARALLEL_SIZE=1
+export TRAIN_SEED=1234
+export START_ROLLOUT_ID=0
+export USE_WANDB=1
+export WANDB_PROJECT=slime-dev
+export WANDB_GROUP=tau2-sft-areal3-banking-simplified-full-20260920
+export WANDB_MODE=offline
+exec bash "${PROJECT_ROOT}/examples/tau2-bench/sft/run_qwen3_4b_instruct_2507_sft.sh"

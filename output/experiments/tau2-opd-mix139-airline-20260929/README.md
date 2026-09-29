@@ -24,7 +24,7 @@ iter59 总体 **31.98 / 48.22 / 14.21%**，相对实际初始化 mix139 为 **+0
 
 | 模型 | 总体（197任务） | Airline | Retail | Telecom | Banking knowledge |
 |---|---|---|---|---|---|
-| [Raw Instruct](../../../../slime/output/experiments/tau2-banking-expert-sft/eval/raw-full-qwen36-bm25-fixed/seed300_0910_raw_fixed_summary.json) | 18.91 / 31.98 / 8.63 | 33.75 / 65.00 / 10.00 | 52.50 / 72.50 / 30.00 | 17.50 / 42.50 / 5.00 | 2.58 / 4.12 / 1.03 |
+| [Raw Instruct](../tau2-banking-expert-sft/eval/raw-full-qwen36-bm25-fixed/seed300_0910_raw_fixed_summary.json) | 18.91 / 31.98 / 8.63 | 33.75 / 65.00 / 10.00 | 52.50 / 72.50 / 30.00 | 17.50 / 42.50 / 5.00 | 2.58 / 4.12 / 1.03 |
 | [SFT4505](../tau2-sft-areal3-banking-simplified-full-20260920/eval/four-domain-sft-iter4505/seed300_20260920_sft_iter4505_four_domain_summary.json) | 27.92 / 43.15 / 13.20 | 42.50 / 65.00 / 30.00 | 58.75 / 77.50 / 35.00 | 47.50 / 82.50 / 12.50 | 4.12 / 8.25 / 1.03 |
 | [Vanilla GRPO iter139](../tau2-mix-rl-sft4505-b128-20260925/eval/vanilla-grpo-iter139-four-domain/seed300_20260925_vanilla_grpo_iter139_seed300_summary.json) | 29.95 / 46.19 / 13.20 | 42.50 / 60.00 / 25.00 | 61.25 / 87.50 / 37.50 | 51.88 / 85.00 / 15.00 | 5.41 / 10.31 / 0.00 |
 | [Mix RL iter139（学生初始化 / 非 Airline 教师）](../tau2-mix-rl-sft4505-b128-20260925/eval/mix-iter139-four-domain/seed300_20260925_mix_iter139_seed300_summary.json) | 31.22 / 48.73 / 13.71 | 40.00 / 70.00 / 15.00 | 63.75 / 85.00 / 40.00 | 56.25 / 87.50 / 20.00 | 5.67 / 13.40 / 0.00 |

@@ -1,0 +1,568 @@
+{
+  "snapshot": "2026-09-29 19:58 CST",
+  "note": "Matches the complete evaluations in the experiment README snapshot. Partial evaluations excluded. Single evaluation seed; no significance claim.",
+  "protocol": {
+    "tasks": 197,
+    "trials_per_task": 4,
+    "simulations": 788,
+    "seed": 300,
+    "agent": "Qwen3-4B-Instruct-2507 and its trained checkpoints",
+    "user": "Qwen3.6-27B",
+    "user_thinking": false,
+    "user_temperature": 0,
+    "user_max_tokens": 512,
+    "agent_temperature": 0.6,
+    "agent_top_p": 1,
+    "agent_max_tokens": 1200,
+    "max_steps": 200,
+    "max_errors": 10,
+    "banking_retrieval": "BM25",
+    "domain_tasks": {
+      "airline": 20,
+      "retail": 40,
+      "telecom": 40,
+      "banking_knowledge": 97
+    }
+  },
+  "models": [
+    {
+      "id": "raw",
+      "label": "Raw Instruct",
+      "selected": false,
+      "source": "tau2-banking-expert-sft/eval/raw-full-qwen36-bm25-fixed/seed300_0910_raw_fixed_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.18908629441624367,
+        "pass_at_4_any": 0.3197969543147208,
+        "pass_power_4": 0.08629441624365482
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.3375,
+          "pass_at_4_any": 0.65,
+          "pass_power_4": 0.1
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.525,
+          "pass_at_4_any": 0.725,
+          "pass_power_4": 0.3
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.175,
+          "pass_at_4_any": 0.425,
+          "pass_power_4": 0.05
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.02577319587628866,
+          "pass_at_4_any": 0.041237113402061855,
+          "pass_power_4": 0.010309278350515464
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.2796915167095116,
+        "db_accuracy": 0.2018111254851229,
+        "max_steps": 14,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "sft",
+      "label": "SFT4505",
+      "selected": false,
+      "source": "tau2-sft-areal3-banking-simplified-full-20260920/eval/four-domain-sft-iter4505/seed300_20260920_sft_iter4505_four_domain_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.27918781725888325,
+        "pass_at_4_any": 0.43147208121827413,
+        "pass_power_4": 0.1319796954314721
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.425,
+          "pass_at_4_any": 0.65,
+          "pass_power_4": 0.3
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.5875,
+          "pass_at_4_any": 0.775,
+          "pass_power_4": 0.35
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.475,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.125
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.041237113402061855,
+          "pass_at_4_any": 0.08247422680412371,
+          "pass_power_4": 0.010309278350515464
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.3537711646998461,
+        "db_accuracy": 0.23667100130039012,
+        "max_steps": 14,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "vanilla",
+      "label": "Vanilla GRPO iter139",
+      "selected": false,
+      "source": "tau2-mix-rl-sft4505-b128-20260925/eval/vanilla-grpo-iter139-four-domain/seed300_20260925_vanilla_grpo_iter139_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.29949238578680204,
+        "pass_at_4_any": 0.4619289340101523,
+        "pass_power_4": 0.1319796954314721
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.425,
+          "pass_at_4_any": 0.6,
+          "pass_power_4": 0.25
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.6125,
+          "pass_at_4_any": 0.875,
+          "pass_power_4": 0.375
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.51875,
+          "pass_at_4_any": 0.85,
+          "pass_power_4": 0.15
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.05412371134020619,
+          "pass_at_4_any": 0.10309278350515463,
+          "pass_power_4": 0.0
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.4242902208201893,
+        "db_accuracy": 0.297583081570997,
+        "max_steps": 108,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "mix",
+      "label": "Mix RL iter139",
+      "selected": false,
+      "source": "tau2-mix-rl-sft4505-b128-20260925/eval/mix-iter139-four-domain/seed300_20260925_mix_iter139_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.31218274111675126,
+        "pass_at_4_any": 0.4873096446700508,
+        "pass_power_4": 0.13705583756345177
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.4,
+          "pass_at_4_any": 0.7,
+          "pass_power_4": 0.15
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.6375,
+          "pass_at_4_any": 0.85,
+          "pass_power_4": 0.4
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.5625,
+          "pass_at_4_any": 0.875,
+          "pass_power_4": 0.2
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.05670103092783505,
+          "pass_at_4_any": 0.13402061855670103,
+          "pass_power_4": 0.0
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.4014578076815251,
+        "db_accuracy": 0.2812071330589849,
+        "max_steps": 49,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "teacher",
+      "label": "Airline expert iter29",
+      "selected": false,
+      "source": "tau2-domain-experts-sft4505-b128/eval/airline-iter29-four-domain/seed300_20260921_sft4505_airline_iter29_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.2956852791878173,
+        "pass_at_4_any": 0.4720812182741117,
+        "pass_power_4": 0.1319796954314721
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.5375,
+          "pass_at_4_any": 0.75,
+          "pass_power_4": 0.35
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.59375,
+          "pass_at_4_any": 0.9,
+          "pass_power_4": 0.3
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.49375,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.175
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.041237113402061855,
+          "pass_at_4_any": 0.09278350515463918,
+          "pass_power_4": 0.0
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.3735829158977063,
+        "db_accuracy": 0.25862068965517243,
+        "max_steps": 21,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "opd9",
+      "label": "OPD iter9",
+      "selected": false,
+      "source": "tau2-opd-mix139-airline-20260929/eval/opd-mix139-airline-iter9-four-domain/seed300_20260929_opd_mix139_airline_iter9_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.3299492385786802,
+        "pass_at_4_any": 0.4619289340101523,
+        "pass_power_4": 0.15228426395939088
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.5,
+          "pass_at_4_any": 0.7,
+          "pass_power_4": 0.15
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.63125,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.375
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.6,
+          "pass_at_4_any": 0.85,
+          "pass_power_4": 0.25
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.059278350515463915,
+          "pass_at_4_any": 0.10309278350515463,
+          "pass_power_4": 0.020618556701030927
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.3998896856039713,
+        "db_accuracy": 0.2857142857142857,
+        "max_steps": 49,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "opd19",
+      "label": "OPD iter19",
+      "selected": false,
+      "source": "tau2-opd-mix139-airline-20260929/eval/opd-mix139-airline-iter19-four-domain/seed300_20260929_opd_mix139_airline_iter19_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.3299492385786802,
+        "pass_at_4_any": 0.4517766497461929,
+        "pass_power_4": 0.17766497461928935
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.5125,
+          "pass_at_4_any": 0.75,
+          "pass_power_4": 0.2
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.66875,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.45
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.5625,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.275
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.05670103092783505,
+          "pass_at_4_any": 0.08247422680412371,
+          "pass_power_4": 0.020618556701030927
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.39067133998382314,
+        "db_accuracy": 0.2998661311914324,
+        "max_steps": 36,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "opd29",
+      "label": "OPD iter29",
+      "selected": false,
+      "source": "tau2-opd-mix139-airline-20260929/eval/opd-mix139-airline-iter29-four-domain/seed300_20260929_opd_mix139_airline_iter29_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.3083756345177665,
+        "pass_at_4_any": 0.45685279187817257,
+        "pass_power_4": 0.15736040609137056
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.4875,
+          "pass_at_4_any": 0.7,
+          "pass_power_4": 0.25
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.6,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.375
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.53125,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.25
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.059278350515463915,
+          "pass_at_4_any": 0.10309278350515463,
+          "pass_power_4": 0.010309278350515464
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.3794642857142857,
+        "db_accuracy": 0.27586206896551724,
+        "max_steps": 29,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "opd39",
+      "label": "OPD iter39",
+      "selected": false,
+      "source": "tau2-opd-mix139-airline-20260929/eval/opd-mix139-airline-iter39-four-domain/seed300_20260929_opd_mix139_airline_iter39_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.3197969543147208,
+        "pass_at_4_any": 0.467005076142132,
+        "pass_power_4": 0.17766497461928935
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.45,
+          "pass_at_4_any": 0.65,
+          "pass_power_4": 0.25
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.63125,
+          "pass_at_4_any": 0.9,
+          "pass_power_4": 0.425
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.5875,
+          "pass_at_4_any": 0.825,
+          "pass_power_4": 0.3
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.05412371134020619,
+          "pass_at_4_any": 0.10309278350515463,
+          "pass_power_4": 0.010309278350515464
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.39543830722726026,
+        "db_accuracy": 0.2774018944519621,
+        "max_steps": 42,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "opd49",
+      "label": "OPD iter49",
+      "selected": false,
+      "source": "tau2-opd-mix139-airline-20260929/eval/opd-mix139-airline-iter49-four-domain/seed300_20260929_opd_mix139_airline_iter49_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.31725888324873097,
+        "pass_at_4_any": 0.4720812182741117,
+        "pass_power_4": 0.15736040609137056
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.525,
+          "pass_at_4_any": 0.7,
+          "pass_power_4": 0.3
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.625,
+          "pass_at_4_any": 0.875,
+          "pass_power_4": 0.4
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.5625,
+          "pass_at_4_any": 0.875,
+          "pass_power_4": 0.225
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.04639175257731959,
+          "pass_at_4_any": 0.09278350515463918,
+          "pass_power_4": 0.0
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.4049887892376682,
+        "db_accuracy": 0.27808219178082194,
+        "max_steps": 53,
+        "infrastructure_errors": 0
+      }
+    },
+    {
+      "id": "opd59",
+      "label": "OPD iter59",
+      "selected": true,
+      "source": "tau2-opd-mix139-airline-20260929/eval/opd-mix139-airline-iter59-four-domain/seed300_20260929_opd_mix139_airline_iter59_seed300_summary.json",
+      "overall": {
+        "tasks": 197,
+        "simulations": 788,
+        "pass_at_1": 0.3197969543147208,
+        "pass_at_4_any": 0.48223350253807107,
+        "pass_power_4": 0.14213197969543148
+      },
+      "domains": {
+        "airline": {
+          "tasks": 20,
+          "simulations": 80,
+          "pass_at_1": 0.5125,
+          "pass_at_4_any": 0.75,
+          "pass_power_4": 0.2
+        },
+        "retail": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.65,
+          "pass_at_4_any": 0.85,
+          "pass_power_4": 0.475
+        },
+        "telecom": {
+          "tasks": 40,
+          "simulations": 160,
+          "pass_at_1": 0.54375,
+          "pass_at_4_any": 0.875,
+          "pass_power_4": 0.125
+        },
+        "banking_knowledge": {
+          "tasks": 97,
+          "simulations": 388,
+          "pass_at_1": 0.05154639175257732,
+          "pass_at_4_any": 0.1134020618556701,
+          "pass_power_4": 0.0
+        }
+      },
+      "diagnostics": {
+        "action_accuracy": 0.39328277356446373,
+        "db_accuracy": 0.29499323410013534,
+        "max_steps": 43,
+        "infrastructure_errors": 0
+      }
+    }
+  ]
+}

@@ -1,727 +1,281 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Service Agent · 面向长程客服交互与工具调用的后训练</title>
-<meta name="description" content="Service Agent：基于 slime、tau2-bench 与 Qwen3-4B 的长程客服 Agent 后训练全链路，包括异步评测、SFT 数据治理、任务构造、异步 RL、信用分配与多教师蒸馏。">
-<meta property="og:title" content="Service Agent · 面向长程客服交互与工具调用的后训练">
-<meta property="og:description" content="从异步评测、数据治理和任务构造，到异步 Agentic RL、逐轮信用分配与多教师 OPD。">
-<meta property="og:type" content="website">
-<style>
-  :root{
-    --accent:#2f6fd6; --accent-dark:#1d4ed8; --accent-soft:#eef4ff;
-    --teal:#0ca678; --teal-soft:#e6fcf5;
-    --orange:#e8590c; --orange-soft:#fff4ec;
-    --ink:#1f2937; --muted:#64748b; --faint:#94a3b8;
-    --line:#e2e8f0; --bg:#f8fafc; --card:#ffffff;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  html{scroll-behavior:smooth; scroll-padding-top:64px;}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
-    color:var(--ink); background:var(--bg); font-size:15.5px; line-height:1.85;
-  }
-  /* ---------- nav ---------- */
-  nav{
-    position:sticky; top:0; z-index:50;
-    background:rgba(255,255,255,.88); backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--line);
-  }
-  .nav-inner{max-width:920px; margin:0 auto; padding:10px 20px; display:flex; gap:4px; flex-wrap:wrap; align-items:center;}
-  .nav-inner .brand{font-weight:700; color:var(--accent-dark); margin-right:14px;}
-  .nav-inner a{color:var(--muted); text-decoration:none; font-size:13.5px; padding:4px 10px; border-radius:6px;}
-  .nav-inner a:hover{color:var(--accent-dark); background:var(--accent-soft);}
-  /* ---------- layout ---------- */
-  .wrap{max-width:920px; margin:0 auto; padding:0 20px;}
-  section{padding:34px 0 6px;}
-  h2{font-size:23px; letter-spacing:.5px; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--accent);}
-  h2 .no{color:var(--accent); margin-right:10px; font-variant-numeric:tabular-nums;}
-  h3{font-size:17.5px; margin:26px 0 8px;}
-  h3 .no{color:var(--accent); margin-right:8px;}
-  p{margin:10px 0;}
-  .muted{color:var(--muted);}
-  strong.num{color:var(--accent-dark);}
-  em.formula{font-family:"Times New Roman",serif; font-style:italic;}
-  /* ---------- hero ---------- */
-  header.hero{
-    background:linear-gradient(160deg,#12255c 0%,#1d4ed8 55%,#2f6fd6 100%);
-    color:#fff; padding:52px 0 40px;
-  }
-  .hero .wrap{text-align:center;}
-  .hero .kicker{font-size:13.5px; letter-spacing:2px; color:#bcd3ff; margin-bottom:10px;}
-  .hero h1{font-size:38px; letter-spacing:1px; margin-bottom:6px;}
-  .hero .subtitle{font-size:17px; color:#dbe7ff; margin-bottom:18px;}
-  .hero .meta{font-size:14px; color:#bcd3ff; margin-bottom:20px;}
-  .hero .meta a{color:#fff; text-decoration:underline; text-underline-offset:3px;}
-  .chips{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:8px;}
-  .chip{
-    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.28);
-    border-radius:999px; padding:5px 14px; font-size:13px; color:#eaf1ff;
-  }
-  .chip b{color:#fff; font-size:14px;}
-  .btnrow{margin-top:22px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
-  .btn{
-    display:inline-block; padding:8px 20px; border-radius:8px; font-size:14px; text-decoration:none;
-    background:#fff; color:var(--accent-dark); font-weight:600;
-  }
-  .btn.ghost{background:transparent; color:#fff; border:1px solid rgba(255,255,255,.6); font-weight:500;}
-  /* ---------- cards & boxes ---------- */
-  .card{
-    background:var(--card); border:1px solid var(--line); border-radius:12px;
-    padding:20px 24px; margin:16px 0;
-    box-shadow:0 1px 3px rgba(15,40,80,.05);
-  }
-  .tldr{background:var(--accent-soft); border:1px solid #d3e2fb; border-radius:12px; padding:18px 24px; margin-top:-18px; position:relative; z-index:2;}
-  .contrib li{margin:6px 0;}
-  /* ---------- figures ---------- */
-  figure{margin:18px 0; text-align:center;}
-  figure svg{width:100%; height:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px;}
-  figcaption{font-size:12.8px; color:var(--muted); margin-top:8px; line-height:1.6; text-align:center;}
-  /* ---------- tables ---------- */
-  .tbl-wrap{overflow-x:auto; margin:14px 0;}
-  table.tbl{width:100%; border-collapse:collapse; font-size:13.6px; background:var(--card); border-radius:10px; overflow:hidden; box-shadow:0 1px 3px rgba(15,40,80,.05);}
-  .tbl caption{caption-side:top; text-align:left; font-size:13px; color:var(--muted); padding:6px 2px;}
-  .tbl th{background:var(--accent-soft); color:#1e3a6e; font-weight:600; padding:8px 10px; border-bottom:2px solid #c9dcfa; white-space:nowrap;}
-  .tbl td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:center;}
-  .tbl td.l{text-align:left;}
-  .tbl tr:nth-child(even) td{background:#fbfdff;}
-  .tbl tr:hover td{background:var(--accent-soft);}
-  .tbl td.best, .tbl b{color:var(--accent-dark);}
-  .tbl .delta-pos{color:var(--teal); font-weight:600;}
-  .tbl .delta-neg{color:var(--orange);}
-  .note{font-size:12.8px; color:var(--muted); background:#fbfcfe; border-left:3px solid var(--line); padding:8px 14px; margin:10px 0; border-radius:0 8px 8px 0;}
-  /* ---------- method step ---------- */
-  .method{border-left:4px solid var(--accent); padding:4px 0 4px 0;}
-  .tag{display:inline-block; font-size:12px; padding:1px 10px; border-radius:999px; margin-right:8px; vertical-align:2px;}
-  .tag.prob{background:var(--orange-soft); color:var(--orange);}
-  .tag.sol{background:var(--accent-soft); color:var(--accent-dark);}
-  .tag.res{background:var(--teal-soft); color:var(--teal);}
-  ul.plain{padding-left:22px;}
-  ul.plain li{margin:5px 0;}
-  /* ---------- footer ---------- */
-  footer{margin-top:48px; border-top:1px solid var(--line); padding:26px 0 44px; color:var(--muted); font-size:13px; text-align:center;}
-  footer a{color:var(--accent);}
-  @media (max-width:640px){
-    .hero h1{font-size:28px;} body{font-size:14.5px;}
-  }
-</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Service Agent · 多轮客服 Agent 的后训练实践</title>
+<meta name="description" content="付仕豪的 Service Agent 项目：从异步评测、SFT 数据治理和 Banking 任务构造，到异步 RL、状态进度信用分配与双教师 OPD。讲解方法、对照实验与最终四领域结果。">
+<meta property="og:title" content="Service Agent · 从 Raw 到 SFT、Mix RL 与 OPD">
+<meta property="og:description" content="一个 4B 客服 Agent 的完整后训练过程。四领域 pass@1 从 18.91% 到 31.98%，最终选择 OPD iter59。">
+<meta name="theme-color" content="#246650">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23246650'/%3E%3Cpath d='M23 9H12v7h8v7H9' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js" defer></script>
 </head>
 <body>
-
-<nav>
-  <div class="nav-inner">
-    <span class="brand">Service Agent</span>
-    <a href="#intro">引言</a>
-    <a href="#related">相关工作</a>
-    <a href="#method">方法</a>
-    <a href="#results">实验结果</a>
-    <a href="#discussion">讨论</a>
-    <a href="#conclusion">结论</a>
-  </div>
-</nav>
-
-<header class="hero">
-  <div class="wrap">
-    <div class="kicker">项目主页 · PROJECT PAGE</div>
-    <h1>Service Agent</h1>
-    <div class="subtitle">面向长程客服交互与工具调用的 4B 模型后训练全链路</div>
-    <div class="meta">
-      付仕豪 · 中山大学 计算机学院 · 2026.07 — 2026.09
-    </div>
-    <div class="chips">
-      <span class="chip"><b>4.88×</b> 评测加速</span>
-      <span class="chip"><b>30,376</b> 条治理样本</span>
-      <span class="chip"><b>647</b> 个构造场景</span>
-      <span class="chip"><b>4.60×</b> RL 训练提速</span>
-      <span class="chip"><b>+11.25pp</b> 专家最大提升</span>
-      <span class="chip"><b>93.4%</b> 教师能力保留</span>
-    </div>
-    <div class="btnrow">
-      <a class="btn" href="#results">查看结果</a>
-      <a class="btn ghost" href="#method">方法介绍</a>
-      <a class="btn ghost" href="https://github.com/shihaofu2003/slime">GitHub</a>
-    </div>
+<a class="skip" href="#overview">跳到项目内容</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>Service Agent</a>
+    <nav class="toplinks" aria-label="页面导航">
+      <a class="desktop-only" href="#overview">项目过程</a><a href="#results">实验结果</a><a class="desktop-only" href="sources.html">数据与依据</a><a href="https://github.com/shihaofu2003/slime">GitHub ↗</a>
+    </nav>
   </div>
 </header>
-
-<div class="wrap">
-  <div class="tldr">
-    <b>摘要（TL;DR）：</b>围绕 tau3-benchmark 客服基准（Airline、Retail、Telecom、Banking 四领域），独立完成
-    <b>Qwen3-4B-Instruct-2507</b> 客服 Agent 的后训练全链路：异步评测、SFT 数据治理、任务构造、异步 Agentic RL、
-    逐轮信用分配与多教师蒸馏。最终单一 4B Agent 在官方 197 题 × 4 次试验下取得
-    Airline <b>50.00%</b> / Retail <b>58.13%</b> / Telecom <b>48.13%</b> 的 pass@1，保留了四位领域专家约九成的任务完成能力。
+<header class="hero" id="top">
+  <div class="eyebrow">个人项目 · 2026.07 — 2026.09</div>
+  <h1>训练一个能完成<br>多轮客服任务的 4B Agent。</h1>
+  <p class="hero-summary">从查清一张订单，到按规则改签机票，客服 Agent 需要理解需求、选择工具，并把业务状态真正改对。我围绕 Airline、Retail、Telecom、Banking 四个领域，完成了数据准备、训练系统、奖励设计和专家蒸馏。</p>
+  <div class="hero-meta"><span>付仕豪 · 中山大学计算机学院</span><span>Agent：Qwen3-4B-Instruct-2507</span><span>User：Qwen3.6-27B</span></div>
+  <div class="hero-links"><a class="button" href="#overview">从项目过程开始 <span aria-hidden="true">↓</span></a><a class="button secondary" href="#results">查看四阶段结果 <span aria-hidden="true">↗</span></a></div>
+  <div class="headline-results" aria-label="Raw Instruct 与最终 OPD iter59 的四领域结果">
+    <div><span class="stat-label">pass@1 · 单次成功率</span><strong class="stat-number"><span class="from">18.91%</span><span class="arrow">→</span>31.98%</strong><span class="stat-note">+13.07 个百分点</span></div>
+    <div><span class="stat-label">pass@4 · 四次至少一次成功</span><strong class="stat-number"><span class="from">31.98%</span><span class="arrow">→</span>48.22%</strong><span class="stat-note">+16.24 个百分点</span></div>
+    <div><span class="stat-label">pass^4 · 四次全部成功</span><strong class="stat-number"><span class="from">8.63%</span><span class="arrow">→</span>14.21%</strong><span class="stat-note">+5.58 个百分点</span></div>
   </div>
+  <p class="source-note">同协议官方评测 · 197 个任务 × 4 次试验 · seed 300 · 最终模型 OPD iter59。<a href="#protocol">查看评测条件</a></p>
+  <details class="mobile-nav"><summary>项目目录</summary><nav aria-label="移动端章节目录"><a href="#overview">项目主线</a><a href="#evaluation">01 异步评测</a><a href="#data">02 SFT 数据治理</a><a href="#banking">03 Banking 任务</a><a href="#async-rl">04 异步 RL</a><a href="#credit">05 信用分配</a><a href="#opd">06 双教师 OPD</a><a href="#results">07 最终结果</a></nav></details>
+</header>
+<div class="layout">
+  <aside class="sidebar" aria-label="项目目录">
+    <p class="sidebar-label">项目过程</p>
+    <nav><a href="#overview" class="active"><span>00</span>目标与训练主线</a><a href="#evaluation"><span>01</span>让评测更快</a><a href="#data"><span>02</span>整理 SFT 数据</a><a href="#banking"><span>03</span>构造 Banking 任务</a><a href="#async-rl"><span>04</span>减少训练等待</a><a href="#credit"><span>05</span>给每轮操作反馈</a><a href="#opd"><span>06</span>用专家补足能力</a><a href="#results"><span>07</span>四阶段完整结果</a></nav>
+    <div class="minor-links"><a href="sources.html">数据与实验依据 ↗</a><a href="history/index.html">历史实验页面 ↗</a></div>
+    <p class="reading-time">正文按最终采用的方法组织。<br>参数和补充对照可展开查看。</p>
+  </aside>
+  <main id="main-content">
+    <section class="chapter" id="overview">
+      <div class="chapter-num">00 / 项目主线</div>
+      <h2>目标是完成业务，不只生成回复</h2>
+      <p class="lead">客服 Agent 每次回复都可能影响后续操作。查错一条记录、改错一个字段，或没有让用户完成手机端设置，都可能使整条任务失败。</p>
+      <p>评测中有三个参与方：Agent 读取业务规则并调用客服工具；User 模型扮演客户，提出需求并完成用户侧操作；环境执行工具，保存订单、账户或设备状态。任务结束后，官方评分器检查该任务要求的数据库状态、环境条件、动作或沟通内容。</p>
+      <div class="example">
+        <div class="example-title">真实轨迹例子 · Retail task 56</div>
+        <p>客户只想处理订单中的空气净化器，订单还包含音箱和手机。一条失败轨迹调用了“取消整单”，工具执行成功，但取消范围不符合需求。另一条轨迹在客户确认后，只替换了指定商品，并把差价退到礼品卡。</p>
+        <div class="contrast"><div><h4>失败：工具能执行，业务做错了</h4><p>整张订单变成 cancelled，后续也不能再修改这件商品。最终数据库与目标状态不一致，reward = 0。</p></div><div><h4>成功：状态变化符合本次需求</h4><p>只更换空气净化器，保留其他商品，完成差价退款。数据库匹配，reward = 1。</p></div></div>
+        <p class="source-note">来自相同任务的两次真实试验，用户的后续表达也不同；用于解释任务判分，不作为单变量对照。<a href="sources.html#evaluation">轨迹依据</a></p>
+      </div>
+      <h3>一条模型主线，六项具体工作</h3>
+      <p>起点是已有指令模型 Qwen3-4B-Instruct-2507。这里的 Raw 指“尚未经过本项目训练”，不是预训练基座。先用整理后的示范做 SFT，再在四领域任务中做强化学习，最后让 Airline 专家补充混合模型的不足。</p>
+      <div class="flow" aria-label="最终采用的模型训练顺序">
+        <div class="flow-step"><span class="step-label">起点</span><b>Raw Instruct</b><p>已有指令模型<br>尚未进行项目训练</p></div>
+        <div class="flow-step"><span class="step-label">学习客服示范</span><b>SFT</b><p>30,376 + 5,672 行<br>四领域监督数据</p><span class="chip">iter4505</span></div>
+        <div class="flow-step"><span class="step-label">在环境中练习</span><b>Mix RL</b><p>2,524 个任务<br>状态进度信用分配</p><span class="chip">iter139</span></div>
+        <div class="flow-step selected"><span class="step-label">补充 Airline 能力</span><b>双教师 OPD</b><p>Airline 专家 + Mix<br>按领域提供监督</p><span class="chip">最终选择 iter59</span></div>
+      </div>
+      <p class="note">Airline expert iter29 从同一个 SFT4505 单独训练，是 OPD 的另一位固定教师。训练时使用两个教师，评测和实际推理只使用最终的一个 4B 学生模型。</p>
+      <div class="reading-map">
+        <a href="#evaluation"><span class="num">01</span><div><strong>评测耗时长，怎样减少等待？</strong><p>多轨迹共享 Agent/User 推理服务，已完成领域释放并发名额。</p></div></a>
+        <a href="#data"><span class="num">02</span><div><strong>有示范数据，为什么还要处理？</strong><p>对齐工具归属、真实返回、监督目标与运行时协议。</p></div></a>
+        <a href="#banking"><span class="num">03</span><div><strong>Banking 没有训练任务，怎样补齐？</strong><p>构造可执行、可判分的新场景，再采集完整示范。</p></div></a>
+        <a href="#async-rl"><span class="num">04</span><div><strong>长短轨迹混在一起，怎样训练？</strong><p>持续采样、按完整组入训，让采样与参数更新重叠。</p></div></a>
+        <a href="#credit"><span class="num">05</span><div><strong>只知道最终成败，怎样区分中间步骤？</strong><p>根据环境状态离目标的远近，给 Assistant 每一轮反馈。</p></div></a>
+        <a href="#opd"><span class="num">06</span><div><strong>混合模型弱于单域专家，怎样补足？</strong><p>在学生自己生成的对话上，获得相应教师的逐 token 监督。</p></div></a>
+      </div>
+      <p class="source-note">基于 slime / Megatron-LM / Ray / SGLang 实现。项目资料沿用 tau3-benchmark 名称，历史代码目录仍为 <code>tau2-bench</code>，Banking 注册名为 <code>banking_knowledge</code>。</p>
+    </section>
+
+    <section class="chapter" id="evaluation">
+      <div class="chapter-num">01 / 异步评测</div>
+      <h2>让多条对话交错使用推理服务</h2>
+      <p>原入口逐领域执行，域内一次只推进一条轨迹。Agent 生成完后要等 User，User 回复后又要等 Agent，模型服务有不少空闲时间。一次三领域评测包含 100 个任务、每题 4 次试验，串行作业耗时接近三小时。</p>
+      <p>我保留单条对话内的先后顺序，让不同任务的轨迹并发推进：轨迹 A 等 User 时，轨迹 B 可以请求 Agent。每条轨迹保存自己的消息历史和环境状态，所有轨迹共享 Agent 和 User 推理池。</p>
+      <figure class="diagram">
+        <div class="figure-title">多轨迹共享两类模型服务 <span>架构示意</span></div>
+        <div class="diagram-scroll">
+          <svg viewBox="0 0 800 253" role="img" aria-labelledby="eval-svg-title eval-svg-desc">
+            <title id="eval-svg-title">异步评测的领域、轨迹与共享推理服务</title><desc id="eval-svg-desc">四个领域独立运行，各轨迹保留独立状态。它们共享两个 Agent 副本和三个 User 副本。一个领域完成后释放并发名额。</desc>
+            <defs><marker id="eval-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#8aa093"/></marker></defs>
+            <rect x="0" y="22" width="159" height="171" rx="7" fill="#f1f4ee"/><text x="18" y="48" class="svg-heading">四个领域进程</text>
+            <text x="18" y="80" class="svg-label">Airline · 1 个名额</text><text x="18" y="109" class="svg-label">Retail · 2 个名额</text><text x="18" y="138" class="svg-label">Telecom · 2 个名额</text><text x="18" y="167" class="svg-label">Banking · 4 个名额</text>
+            <path d="M165 107H205" fill="none" stroke="#8aa093" stroke-width="1.5" marker-end="url(#eval-arrow)"/>
+            <rect x="218" y="22" width="260" height="171" rx="7" fill="#fff" stroke="#dce4dc"/><text x="238" y="49" class="svg-heading">同时推进的独立轨迹</text>
+            <rect x="238" y="64" width="220" height="31" rx="4" fill="#eaf1e9"/><text x="250" y="85" class="svg-label">轨迹 A：等待 User 回复</text>
+            <rect x="238" y="104" width="220" height="31" rx="4" fill="#e9eff5"/><text x="250" y="125" class="svg-label">轨迹 B：Agent 生成中</text>
+            <text x="238" y="169" class="svg-small">各自的对话、工具与数据库</text>
+            <path d="M480 108H515V67H545M515 108V156H545" fill="none" stroke="#8aa093" stroke-width="1.5" marker-end="url(#eval-arrow)"/>
+            <rect x="557" y="24" width="238" height="73" rx="6" fill="#eaf1e9"/><text x="576" y="51" class="svg-heading">Agent 推理池 · 2 GPU</text><text x="576" y="77" class="svg-label">2 个 TP1 副本</text>
+            <rect x="557" y="120" width="238" height="73" rx="6" fill="#e9eff5"/><text x="576" y="146" class="svg-heading">User 推理池 · 6 GPU</text><text x="576" y="173" class="svg-label">3 个 TP2 副本，轮流分配请求</text>
+            <text x="3" y="234" class="svg-small">全局最多 9 条活动轨迹；一个领域全部完成后，将它的并发名额分给未完成的领域。</text>
+          </svg>
+        </div>
+        <figcaption>当前四领域评测使用 8 张 GPU。TP2 表示一个模型副本分布在两张卡上。并行发生在不同轨迹之间；同一条轨迹仍按 Agent、工具、User 的依赖顺序执行。</figcaption>
+      </figure>
+      <h3>根据实际等待，调整资源分配</h3>
+      <p>第一版固定并发已经缩短了时间，但部分 Agent 副本几乎没有请求，User 却占用了更多等待时间。我把资源调整为 2 个 Agent 副本与 3 个 User 副本，并让 User 请求轮流分发。对于结束较晚的领域，再把已完成领域的并发名额转给它。</p>
+      <p>历史三领域运行的并发名额从 <code>2 / 2 / 5</code> 变为 <code>0 / 3 / 6</code>，最后是 <code>0 / 0 / 9</code>。它在一个领域完全结束后重新分配，不预测每条轨迹还要运行多久。</p>
+      <figure>
+        <div class="figure-title">从串行到固定并发，再到弹性并发 <a href="assets/figures/evaluation-speed.png" download>下载 PNG ↗</a></div>
+        <a href="assets/figures/evaluation-speed.svg" aria-label="打开评测耗时与 GPU-hours 大图"><img src="assets/figures/evaluation-speed.svg" width="920" height="350" loading="lazy" alt="串行、固定并发、弹性并发分别耗时174.26、52.84、35.71分钟；GPU-hours分别为11.62、7.05、4.76。"></a>
+        <figcaption>实测：2026-09-01，三领域 100 题 × 4 trials。加速来自并发、路由和 GPU 分配的共同变化。资源占用按申请卡数 × 作业耗时计算。</figcaption>
+      </figure>
+      <div class="result-line">作业耗时 <strong>174.26 → 35.71 分钟</strong>，加速 <strong>4.88×</strong>；资源占用 <strong>11.62 → 4.76 GPU-hours</strong>，减少 <strong>59.0%</strong>。</div>
+      <p class="note warm">这组测速使用历史协议，当时的 User 工具解析不匹配，后来才修复。因此 4.88× 仅描述这组旧配置的整体速度变化。最终模型成绩采用修复后的四领域原生协议，不能用该测速同时证明当前协议的速度和模型质量。</p>
+      <details><summary>实现位置与评测过程</summary><p><code>run_eval.sh</code> 启动模型副本和请求路由；<code>run_eval.py</code> 为领域创建独立进程；Tau2 runner 在各领域内并发执行 task/trial。每条轨迹结束后保存官方 reward 和完整交互记录，再汇总成功率与请求计时。</p><p>核心改动是执行调度、服务布局和计时。最终结果仍由官方任务评分器判断。早期测速与当前四领域协议分别保留，便于检查计算范围。</p></details>
+      <p class="source-note">依据：<a href="sources.html#evaluation">异步评测文档、运行配置与计时</a></p>
+    </section>
+
+    <section class="chapter" id="data">
+      <div class="chapter-num">02 / SFT 数据治理</div>
+      <h2>让示范中的信息、工具和监督目标对得上</h2>
+      <p>AReaL 提供了 Airline、Retail、Telecom 的开源示范。但一行数据只包含“之前的上下文 + 当前 Assistant 输出”，不能直接当成一条独立对话。源数据有 <strong>33,531 行，来自 2,499 段对话</strong>，其中还包含失败与标签冲突的对话。</p>
+      <p>除了任务结果，输入结构也会影响学习。用户手机侧工具不应变成客服可调用的工具；后续动作不能提前看到尚未发生的工具返回；同一段历史也不应随每个训练行反复计入 loss。我把处理重点放在这些运行时会遇到的具体问题上。</p>
+      <div class="table-scroll"><table><thead><tr><th>问题</th><th>最终采用的处理</th></tr></thead><tbody>
+        <tr><td>失败或冲突标签混入正向示范</td><td>按完整对话检查 <code>correct</code> 与 <code>reward</code>，仅保留两者均为 1 的候选。</td></tr>
+        <tr><td>Agent 与 User 的工具权限混用</td><td>换成原生 Agent 提示与工具 schema；隐藏用户侧调用及返回，保留用户正常报告的信息。</td></tr>
+        <tr><td>一次输出包含多个工具调用</td><td>按源顺序拆成原子 target，并为后续调用配入前一调用的真实返回。</td></tr>
+        <tr><td>历史 Assistant 被反复监督</td><td>每行只训练最后一个 Assistant target，历史、User 与工具返回均设为 loss mask 0。</td></tr>
+        <tr><td>上下文超过训练容量</td><td>按最终模板计算长度，超过 16,384 tokens 的整行删除；保留行不截断。</td></tr>
+      </tbody></table></div>
+      <figure class="diagram">
+        <div class="figure-title">从源数据到最终监督目标 <span>实际构建计数</span></div>
+        <div class="data-flow"><div><small>① 原始源行</small><b>33,531</b><small>2,499 段源对话</small></div><div><small>② 双成功源行</small><b>24,816</b><small>2,047 段源对话</small></div><div><small>③ 调用展开后</small><b>31,679</b><small>一行一个原子目标</small></div><div><small>④ 长度筛选后</small><b>30,376</b><small>删除 1,303 行超长目标</small></div></div>
+        <figcaption>展开调用会增加训练行数，所以这些数不是同一单位下不断递减的漏斗。不能用首尾行数相减，代替“检测出多少条低质量对话”。</figcaption>
+      </figure>
+      <div class="example"><div class="example-title">一个具体转换例子 · 结构示意</div><p>源输出包含“查询订单 → 修改订单”两个调用时，第二个动作必须看到第一个动作的真实返回。拆分后仍学习两个动作，只是分别提供正确的上下文。</p>
+        <div class="mask-example" aria-label="第一行监督范围"><span>历史上下文 · 不计 loss</span><span class="learn">查询订单 · 计 loss</span></div>
+        <div class="mask-example" aria-label="第二行监督范围"><span>历史 + 查询 + 真实返回 · 不计 loss</span><span class="learn">修改订单 · 计 loss</span></div>
+        <p class="small">缺少真实返回时，不自行补造 observation。多工具调用本身也不等于低质量；处理依据是执行顺序、可见信息和训练格式。</p>
+      </div>
+      <h3>通过重训比较处理配方</h3>
+      <p>对照组 Raw-all SFT 保留成功、失败与冲突标签，只过滤超长行；Processed SFT 使用上述处理后的数据。两组都做了 SFT，因此这里的 Raw-all 不能与首页未训练的 Raw Instruct 混淆。</p>
+      <figure><div class="figure-title">治理前后 SFT：有改善，也有取舍 <a href="assets/figures/sft-quality.png" download>下载 PNG ↗</a></div><a href="assets/figures/sft-quality.svg" aria-label="打开 SFT 数据治理对照图"><img src="assets/figures/sft-quality.svg" width="920" height="350" loading="lazy" alt="Raw-all与Processed SFT的pass@1为53.125%与55.75%，pass@4为82.5%与81%，pass^4为23%与28%。"></a><figcaption>三领域 100 题 × 4 trials，评测 seeds 300/301 的均值。pass@1 +2.625 pp、pass^4 +5.00 pp；pass@4(any) −1.50 pp。整体 pass@1 与 pass^4 的配对区间均包含 0。</figcaption></figure>
+      <p>处理后的数据成为后续配方的基础。模型评审用于定位业务语义问题，但“评审认为更干净”仍需通过训练检验。后续双审又删去 675 个 targets，匹配更新数的重训却没有改善，所以最终没有采用那次额外过滤。</p>
+      <details><summary>补充对照：数据处理怎样影响后续 RL 稳定性？</summary><p>两个 SFT 分别继续同预算的 100 次 vanilla GRPO 更新，Raw-all 初始化的模型出现复制工具 schema、空参数调用和重复失败；Processed 未出现同类格式退化。最终两评测 seed 的平均 pass@1 为 <strong>22.75% 与 50.75%</strong>。</p><p>两组均无 NaN/OOM，这里的退化指任务表现与调用行为。Processed RL 仍比自己的 SFT 低 5 pp，不能写成 RL 超过 SFT。该实验还存在生成原文与训练重建序列不一致的问题，因此不能把全部差距归给某一种脏数据。</p></details>
+      <div class="result-line">最终三领域数据为 <strong>30,376 行</strong>。再加入下一节的 <strong>5,672 行 Banking 数据</strong>，得到 <strong>36,048 行</strong>四领域 SFT 数据，训练出主线模型 <strong>SFT4505</strong>。</div>
+      <p class="source-note">依据：<a href="sources.html#sft">数据构建、Raw-all 对照与四领域 SFT 配方</a></p>
+    </section>
+
+    <section class="chapter" id="banking">
+      <div class="chapter-num">03 / Banking 任务构造</div>
+      <h2>从单项能力，组合出能执行的新任务</h2>
+      <p>Banking 没有对应的 AReaL 训练数据，官方任务又经常同时要求检索政策、判断资格、验证身份、发现工具和用户协作。原始 4B 在固定官方协议中只成功了 <strong>10 / 388 次</strong>，直接用这些复杂任务采集成功示范很困难。</p>
+      <p>我先把业务拆成<strong>事实抽取、知识检索、规则判断、工具执行、用户协作</strong>五种能力，再按结构复杂度组合成七种任务形态。程序负责客户资料、业务事实、参考动作和成功条件；Qwen3.8-27B 改写用户表达，并在验证后的任务中自主交互生成示范。</p>
+      <h3>每个场景都具备输入、执行过程和判分条件</h3>
+      <p>以“冻结一张遗失的借记卡”为例：先创建新客户、目标卡片和初始状态，选定适用政策；再定义必要的身份验证与工具依赖；最后用参考动作在真实环境中执行，得到目标数据库。模型自行完成任务后，用相同条件判断结果。</p>
+      <div class="example"><div class="example-title">真实合成任务的参考流程 · 遗失借记卡</div><p><strong>检索政策 → 查询客户 → 获取时间 → 核对并记录身份验证 → 解锁冻结工具 → 冻结指定卡片</strong></p><p class="small">评分比较最终 DB，包括验证记录、已解锁工具和借记卡状态。只回复“已经冻结”无法通过。参考动作提供一种可行路径；DB 判分任务也允许其他路径达到相同目标。</p></div>
+      <p>训练实例重新生成，没有沿用官方 97 个任务的逐题请求、实体和初始状态。早期从官方题拆出的诊断任务退出训练池；知识文档使用排除官方题引用文档后的 480 篇已有政策文档。这里复用业务环境与政策体系，不把官方诊断题的成功轨迹当作训练示范。</p>
+      <figure><div class="figure-title">647 个场景如何分配 <a href="assets/figures/banking-tasks.png" download>下载 PNG ↗</a></div><a href="assets/figures/banking-tasks.svg" aria-label="打开 Banking 场景组成图"><img src="assets/figures/banking-tasks.svg" width="920" height="390" loading="lazy" alt="七种任务形态合计647个场景，训练542、开发75、挑战30；从事实抽取、检索到完整流程。"></a><figcaption>覆盖 15 类业务。七种形态按任务结构区分，不能直接当作模型实测难度排名。最终参考链最长 9 个动作；部分任务提供工具名或参数线索以保证可解。</figcaption></figure>
+      <h3>从可解的任务，到可用的示范</h3>
+      <p>最终 <strong>647 / 647</strong> 个场景通过参考回放。训练集采集到 1,914 条 Qwen3.8 成功轨迹，再删除冗余操作、做语义复核与环境回放，保留 <strong>1,651 条完整轨迹</strong>。按 Assistant 目标导出后是 <strong>5,672 行 SFT 样本</strong>，覆盖 530 个训练任务。</p>
+      <p>这一阶段采集示范时，Agent 和 User 都使用 Qwen3.8-27B。后续 4B 模型的 RL、OPD 与官方评测则固定使用 Qwen3.6-27B 作为 User。</p>
+      <p>任务回放通过说明参考流程可执行，模型成功才说明自主交互完成了任务，两者分别统计。压缩只删除选定的多余步骤，不把保留的工具返回改写成模型摘要；超长且无法保留完整有效过程的候选不进入最终数据。</p>
+      <figure><div class="figure-title">Banking 专项 SFT 的官方评测 <a href="assets/figures/banking-sft.png" download>下载 PNG ↗</a></div><a href="assets/figures/banking-sft.svg" aria-label="打开 Banking 专项 SFT 结果图"><img src="assets/figures/banking-sft.svg" width="920" height="350" loading="lazy" alt="Banking专项SFT使pass@1从2.58%升至4.38%，pass@4从4.12%升至9.28%，pass^4保持1.03%。"></a><figcaption>官方 97 题 × 4 trials，seed 300。成功轨迹 10 → 17 条，至少成功一次的任务 4 → 9 个，四次全成功的任务均为 1 个。</figcaption></figure>
+      <p class="note">这是单独验证 Banking 数据的专项 SFT 对照。主线 SFT4505 使用四领域混合数据，其 Banking pass@1 为 4.12%。两者 checkpoint 不同，不能替换数值。专项结果支持数据有用，但绝对成功率仍低，也未建立统计显著性。</p>
+      <details><summary>七种任务形态，分别训练什么？</summary><div class="table-scroll"><table><thead><tr><th>形态</th><th>模型要完成的事</th></tr></thead><tbody><tr><td>事实抽取</td><td>给定文档，提取指定政策事实。</td></tr><tr><td>知识检索</td><td>通过检索找到所需政策文档。</td></tr><tr><td>规则判断</td><td>判断给定证据是否支持政策陈述；本版不是均衡的 Yes/No 集合。</td></tr><tr><td>单步执行</td><td>在已满足前提的状态下，完成一个正确工具动作。</td></tr><tr><td>两能力组合</td><td>组合检索、参数构造或用户侧操作。</td></tr><tr><td>中等流程</td><td>完成有前后依赖的多步骤业务。</td></tr><tr><td>完整流程</td><td>处理更长的动作链或多个实体。</td></tr></tbody></table></div><p>训练集同时包含直接给定文档和 BM25 检索两种条件，不能把其混合成功率称为纯检索端到端成绩。最终官方 Banking 评测统一使用 BM25。</p></details>
+      <p class="source-note">依据：<a href="sources.html#banking">任务构造、轨迹整理与专项评测</a></p>
+    </section>
+
+    <section class="chapter" id="async-rl">
+      <div class="chapter-num">04 / 异步 Agentic RL</div>
+      <h2>完整的组先训练，其他对话继续生成</h2>
+      <p>多轮轨迹长短不一。一次四领域原生评测中，Agent 决策轮数的中位数是 12，最长 101 轮，13 / 788 条轨迹超过 50 轮。只要训练器等待预先绑定的一整批任务，少量长轨迹就会推迟整批更新。</p>
+      <p>我在 slime 上实现持续采样：每个任务采样 K = 8 条完整轨迹，组成一个组；组完成并通过过滤后进入待训练队列。Trainer 收齐 16 组就开始一次更新，其他任务继续交互，下一批也可以继续积累。</p>
+      <figure class="diagram"><div class="figure-title">采样与训练如何重叠 <span>执行关系示意</span></div><div class="diagram-scroll">
+        <svg viewBox="0 0 800 233" role="img" aria-labelledby="rl-svg-title rl-svg-desc"><title id="rl-svg-title">持续采样、完整组入队、Trainer 更新与权重同步</title><desc id="rl-svg-desc">多个独立任务通过Agent和User服务持续生成，每组8条轨迹全部完成后入队。Trainer每次取16组更新，更新后的权重在Agent调用之间同步，User请求可以继续。</desc><defs><marker id="rl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#8aa093"/></marker></defs>
+          <rect x="0" y="20" width="222" height="120" rx="7" fill="#e9eff5"/><text x="19" y="47" class="svg-heading">持续采样</text><text x="19" y="75" class="svg-label">Agent ↔ 工具 ↔ User</text><text x="19" y="101" class="svg-small">独立任务并发，结束后补新任务</text><text x="19" y="124" class="svg-small">4 个环境进程处理 CPU 工作</text>
+          <path d="M227 78H269" stroke="#8aa093" stroke-width="1.5" marker-end="url(#rl-arrow)"/>
+          <rect x="284" y="20" width="228" height="120" rx="7" fill="#f4f2e9"/><text x="303" y="47" class="svg-heading">已完成的轨迹组</text><text x="303" y="75" class="svg-label">每组同一任务 · K = 8</text><text x="303" y="101" class="svg-small">完整上下文、真实采样 token</text><text x="303" y="124" class="svg-small">训练只覆盖 Assistant 输出</text>
+          <path d="M516 78H558" stroke="#8aa093" stroke-width="1.5" marker-end="url(#rl-arrow)"/>
+          <rect x="574" y="20" width="226" height="120" rx="7" fill="#eaf1e9"/><text x="593" y="47" class="svg-heading">Megatron Trainer</text><text x="593" y="75" class="svg-label">16 组 × 8 = 128 条 / 更新</text><text x="593" y="101" class="svg-small">计算优势与梯度，更新参数</text><text x="593" y="124" class="svg-small">与其他任务采样重叠执行</text>
+          <path d="M685 145V188H110V146" fill="none" stroke="#8aa093" stroke-width="1.5" marker-end="url(#rl-arrow)"/><rect x="220" y="174" width="356" height="29" fill="white"/><text x="228" y="192" class="svg-label">等待在途 Agent 调用结束 → 同步新权重</text><text x="166" y="225" class="svg-small">User 请求可继续；一条长轨迹可能跨越多个策略版本。</text>
+        </svg></div><figcaption>主线 Mix RL 的组和 batch 配置。训练作业 8 GPU（Trainer 2 + Generator 6），另有 4 GPU 常驻 User。OPD 后来改为 K = 1、每批 16 条。</figcaption></figure>
+      <h3>两层解耦，各自减少哪种等待</h3>
+      <div class="two-col"><div><h4>采样与 Trainer 解耦</h4><p>采样不等一次参数更新结束才开始下一批。训练器消费已完成组，采样器继续补充其他任务；同任务组内的 K 条轨迹仍完整保留。</p></div><div><h4>Agent 与 User 请求解耦</h4><p>权重同步只暂停新的 Agent 请求，并等待在途 Agent 调用结束。User 请求不必随之暂停。单条对话内部仍保留业务依赖。</p></div></div>
+      <p>异步会带来策略版本差。我保存真实生成 token 及其行为概率，在训练侧重算概率，用截断重要性采样（TIS，权重范围 [0, 2]）减轻两者差异。训练保留完整对话上下文，只对 Assistant token 计算 loss。</p>
+      <p>超长轨迹还会引发显存问题。最终设置 16,384-token 训练上限，超过后重置任务重新采样，最多再试两次；仍不可用则替换组。它避免单条轨迹超过训练容量，也会改变实际入训样本的分布，因此同时记录过滤情况。</p>
+      <h3>测量等待时间，再改 CPU 和采样调度</h3>
+      <p>早期流水线已经异步，但 Trainer 仍长期等数据。计时发现重复数据库处理、单进程 CPU 工作，以及已完成轨迹未及时释放采样容量等问题。我复用不变的 DB 数据和参考状态，将环境与奖励计算分到四个进程，并在轨迹结束后及时补入新采样，配合副本轮询与请求并发调整。</p>
+      <figure><div class="figure-title">训练提速主要来自减少等待 <a href="assets/figures/rl-speed.png" download>下载 PNG ↗</a></div><a href="assets/figures/rl-speed.svg" aria-label="打开异步RL流水线优化图"><img src="assets/figures/rl-speed.svg" width="920" height="320" loading="lazy" alt="优化前后20次更新耗时370.22与80.46分钟，每步等待数据868.65与142.63秒，Trainer计算81.85与82.57秒。"></a><figcaption>Airline，同 SFT4673、batch128、前 20 次更新。两组均为异步；计时不含模型启动和最后清理，另有 4 GPU User。等待与计算可能重叠，不把各项相加为总耗时。</figcaption></figure>
+      <div class="result-line">20 次更新耗时 <strong>370.22 → 80.46 分钟（4.60×）</strong>；Generator 平均利用率 <strong>21.54% → 76.22%</strong>。相同 iter19 的 Airline pass@1 为 <strong>52.50% → 53.75%</strong>。</div>
+      <p class="note">这是完整流水线优化的结果，同时涉及采样策略等改动，不能把 4.60× 全部归于“异步”开关。单 seed 的质量点估计没有下降，也不等于已证明统计等价。独立的严格同步/异步对照在 20 步时仅快 1.060×，100 步时未保持提速。</p>
+      <details><summary>为什么保留真实 token，以及 TIS 具体修正什么？</summary><p>如果先把模型生成文本重新拼成另一种训练格式，token 或上下文会改变，原始采样概率也不再对应同一个样本。实现保存真实输入与输出 token；无法直接拼接的多轮上下文分为多个完整 segment，按原 Assistant span 标记可训位置。</p><div class="formula">w = stop_gradient(clip(p / b, 0, 2))<br><span class="explain">b：实际生成策略的 token 概率；p：更新前训练侧重算的概率。</span></div><p>本次优化另使用 current / p 的更新比率。TIS 截断能降低极端权重影响，但不会让任意陈旧的轨迹都等价于最新策略采样。</p></details>
+      <p class="source-note">依据：<a href="sources.html#async-rl">流水线计时、质量对照与 token 对齐实现</a></p>
+    </section>
+
+    <section class="chapter" id="credit">
+      <div class="chapter-num">05 / 状态进度信用分配</div>
+      <h2>不只看整条成败，也看每轮离目标有多远</h2>
+      <p>普通 GRPO 对同一任务的 K 条轨迹按最终奖励计算相对优势，再把同一个优势用于整条轨迹的 Assistant token。失败轨迹中，正确查询、有效修改和最后一次错误操作可能收到相同方向的信号。</p>
+      <p>我保留终局任务奖励，同时读取每轮操作前后的环境状态，把接近目标的变化记为正进度，把偏离目标的变化记为负进度。这套方法在代码中是 <code>progress-db-count-v1</code>，本文称“状态进度信用分配”。</p>
+      <h3>第一步：用目标状态定义进度</h3>
+      <p>对 DB 判分任务，从相同初态回放参考动作，得到目标数据库 s*。记当前 DB 与目标 DB 的递归字段差异数为 d，定义势函数 Φ = −d。越接近目标，Φ 越大。</p>
+      <div class="formula">Φ(s) = −d(s, s*)<br>r<sub>t</sub> = Φ(s<sub>t+1</sub>) − Φ(s<sub>t</sub>)<br>H<sub>t</sub> = r<sub>t</sub> + 0.98r<sub>t+1</sub> + 0.98²r<sub>t+2</sub> + …</div>
+      <p>例如差异从 3 个字段减到 1 个，本轮进度奖励是 +2；从 1 个变成 2 个，则是 −1。再把后续进度按 0.98 折扣累积，使必要的查询、确认和用户协作也能收到后续完成操作的反馈。</p>
+      <div class="example"><div class="example-title">状态进度示意 · 数字用于解释算法，不是实测轨迹</div><div class="table-scroll"><table class="numeric"><thead><tr><th>本轮之后的变化</th><th>距目标字段差异</th><th>本轮进度奖励</th></tr></thead><tbody><tr><td>初态</td><td>3</td><td>—</td></tr><tr><td>查询信息，DB 未变</td><td>3</td><td>0</td></tr><tr><td>完成正确写入</td><td>1</td><td class="positive">+2</td></tr><tr><td>误改一个字段</td><td>2</td><td class="negative">−1</td></tr><tr><td>纠正并达到目标</td><td>0</td><td class="positive">+2</td></tr></tbody></table></div><p class="small">即时奖励为 0 的查询仍可能具有正的后续回报。每个间隔包括 Assistant 输出后的工具执行与 User 响应；这是按决策间隔分配观察到的进度，没有单独估计反事实因果贡献。</p></div>
+      <h3>第二步：让相近阶段的轮次互相比较</h3>
+      <p>不能直接拿所有轮次的进度回报混在一起标准化。我在同一任务的 K = 8 条轨迹中，按“<strong>当前 DB 相对初始 DB 改变了多少条记录</strong>”分组。变化数相同的轮次放在一起，比较它们后续的进度回报 H，得到进度优势 Q。</p>
+      <p class="note">这里有两个不同的量：<strong>距目标的字段差异数</strong>用于给进度打分；<strong>相对初态改变的记录数</strong>用于分组比较。后者不是累计写调用次数，记录恢复初值后不再计入，也不保证同组轮次业务状态完全相同。</p>
+      <p>最后把 GRPO 的终局优势 B、进度优势 Q 和局部格式项 F 相加，再写到对应 Assistant 轮次的 token 上。System、User 与工具返回只提供上下文，不参与 loss。</p>
+      <div class="formula">A<sub>i,t</sub> = B<sub>i</sub> + Q<sub>i,t</sub> + F<sub>i,t</sub><br><span class="explain">F：本轮出现 malformed JSON、不存在的工具或错误工具归属时为 −0.1，否则为 0。</span></div>
+      <details><summary>标准化、特殊任务与过滤的具体处理</summary><p>Q 在同一任务内、DB 变化数相同的桶中按样本标准差标准化；单元素或近零方差桶设为 0。一个桶可以包含同一轨迹的多轮，轮次编号不必相同，因此长轨迹也可能贡献更多比较点。</p><p>ENV_ASSERTION 任务用满足的断言比例作为势函数。仅含 ACTION/COMMUNICATE、无法构造进度的任务回退到终局与格式项。实际公式先求势函数差再累积，不据此声称有保持最优策略的理论保证。</p><p>正式训练两臂都丢弃 outcome 全 0 或全 1 的完整 K8 组并补采。虽然某些全失败组也能产生不同的局部进度，本轮实验没有保留它们入训，不能把结果解释成已经验证了这部分收益。</p></details>
+      <h3>同初始化、同预算，对比 vanilla GRPO</h3>
+      <p>两个模型都从 SFT4505 开始，使用同一 2,524 个任务池、随机放回采样、固定 User、LR 2e−6、16 组 × K8，以及 140 次更新。Vanilla 只使用官方二值 outcome；实验组加入状态进度和格式项。</p>
+      <figure><div class="figure-title">同为 iter139：比较整套信用分配配方 <a href="assets/figures/credit-control.png" download>下载 PNG ↗</a></div><a href="assets/figures/credit-control.svg" aria-label="打开状态进度RL与vanilla GRPO对照图"><img src="assets/figures/credit-control.svg" width="920" height="350" loading="lazy" alt="Vanilla与状态进度RL的总体pass@1为29.95%与31.22%，pass@4为46.19%与48.73%，pass^4为13.20%与13.71%。"></a><figcaption>197 题 × 4 trials，seed 300。总体增量 +1.27 / +2.54 / +0.51 pp，分别对应多 10 条成功轨迹、多 5 道至少成功一次的题、多 1 道四次全成功的题。</figcaption></figure>
+      <p>这个结果支持把 Mix RL iter139 作为后续主线。它验证的是整套配方，没有单独分离“分桶”或“格式项”的贡献；只有一个训练 run 和一个评测 seed，也不能写成各随机种子都稳定领先。</p>
+      <h3>混合模型的不足，为下一步选教师</h3>
+      <p>Mix RL 的 Airline pass@1 是 40.00%，低于 Airline expert iter29 的 53.75%。逐题检查发现，7 道“不应修改数据库”的题共 28 次试验中，专家成功 27 次，Mix iter139 只有 20 次。错误包括不允许改签时仍改签、忽略数据库时间而取消订单等业务边界问题。</p>
+      <p>训练池中这类题只有 53 / 1,148 个，测试中却占 7 / 20。数据覆盖和训练过程中的能力退化都可能参与其中。这为采用 Airline 专家提供了具体依据，但不能仅凭两模型的差距证明跨领域训练必然造成负迁移。</p>
+      <p class="source-note">依据：<a href="sources.html#credit">算法、同预算对照与 Airline 逐题诊断</a></p>
+    </section>
+
+    <section class="chapter" id="opd">
+      <div class="chapter-num">06 / 双教师 On-Policy Distillation</div>
+      <h2>补足 Airline，同时尽量保留其他领域</h2>
+      <p>最终蒸馏从 <strong>Mix RL iter139</strong> 初始化学生。Airline 使用单域专家 iter29；Retail、Telecom、Banking 使用固定的 Mix RL iter139 作为教师。两位教师都不继续更新，学生根据任务领域接收其中一位的监督。</p>
+      <figure class="diagram"><div class="figure-title">学生先交互，教师评价学生实际生成的 token <span>最终双教师配置</span></div><div class="diagram-scroll">
+        <svg viewBox="0 0 800 290" role="img" aria-labelledby="opd-svg-title opd-svg-desc"><title id="opd-svg-title">Mix139学生与按领域选择的双教师</title><desc id="opd-svg-desc">学生从Mix RL iter139初始化，与固定User和工具环境生成轨迹。Airline轨迹交给Airline expert iter29，其余三领域交给固定Mix139。教师返回逐token概率，供训练器更新同一个学生。</desc><defs><marker id="opd-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#8aa093"/></marker></defs>
+          <rect x="0" y="67" width="216" height="112" rx="7" fill="#eaf1e9"/><text x="19" y="94" class="svg-heading">学生 Agent</text><text x="19" y="123" class="svg-label">从 Mix RL iter139 初始化</text><text x="19" y="151" class="svg-small">与固定 User、工具环境交互</text>
+          <path d="M221 122H257" stroke="#8aa093" stroke-width="1.5" marker-end="url(#opd-arrow)"/>
+          <rect x="272" y="67" width="187" height="112" rx="7" fill="#f4f2e9"/><text x="289" y="95" class="svg-heading">保存学生轨迹</text><text x="289" y="125" class="svg-label">真实上下文与输出 token</text><text x="289" y="151" class="svg-small">按领域选择教师</text>
+          <path d="M463 122H492V52H529M492 122V189H529" fill="none" stroke="#8aa093" stroke-width="1.5" marker-end="url(#opd-arrow)"/>
+          <rect x="543" y="7" width="253" height="87" rx="7" fill="#e9eff5"/><text x="561" y="33" class="svg-heading">Airline expert · iter29</text><text x="561" y="59" class="svg-label">只指导 Airline</text><text x="561" y="79" class="svg-small">固定权重，返回 token logprob</text>
+          <rect x="543" y="143" width="253" height="87" rx="7" fill="#eaf1e9"/><text x="561" y="169" class="svg-heading">Mix RL · iter139</text><text x="561" y="195" class="svg-label">指导 Retail / Telecom / Banking</text><text x="561" y="215" class="svg-small">固定权重，返回 token logprob</text>
+          <path d="M667 235V269H108V185" fill="none" stroke="#8aa093" stroke-width="1.5" marker-end="url(#opd-arrow)"/><rect x="233" y="254" width="337" height="30" fill="white"/><text x="243" y="274" class="svg-label">教师概率 + 当前学生概率 → 更新学生</text>
+        </svg></div><figcaption>教师在学生走到的上下文中评分，不另写一条标准回答。最终保存的是同一个学生模型；评测时无需教师服务。</figcaption></figure>
+      <h3>教师信号怎样进入训练</h3>
+      <p>学生先生成完整交互，教师再计算这些真实 token 在相同上下文中的概率。若教师比当前学生更认可某个 token，就给正优势，反之给负优势。工具名称、参数和自然语言都通过对应 token 获得监督。</p>
+      <div class="formula">A<sub>t</sub> = log q<sub>domain</sub>(y<sub>t</sub> | h<sub>t</sub>) − log p<sub>student</sub>(y<sub>t</sub> | h<sub>t</sub>)<br><span class="explain">q 是固定教师；p 是训练侧当前学生重算的概率。行为策略概率只用于 TIS。</span></div>
+      <p>纯 OPD 每个任务采样 K = 1 条轨迹，一批 16 条。任务 reward 不再作为训练信号，DB 进度优势也关闭；真实任务成功率继续记录为诊断。只优化 Assistant 输出，不对 User 回复或工具结果计算 loss；多段上下文按整条轨迹的有效 token 总量归一化。</p>
+      <h3>控制旧数据等待：总共最多保留 32 组</h3>
+      <p>如果生成速度超过训练速度，已经完成的轨迹会越堆越多；等训练真正用到它们时，学生可能已更新多次。我把<strong>正在生成、已完成待训练、当前正在训练</strong>的轨迹组一起计数，总量达到 32 后暂停引入新组，已有轨迹继续完成。</p>
+      <figure class="diagram"><div class="figure-title">32 组总量限制怎样工作 <span>容量分配示例，非实测占用</span></div><div class="buffer-slots" aria-label="示意：16组训练中，8组待训练，8组生成中，总计32组"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="legend"><span><i style="background:#246650"></i>16 组训练中</span><span><i style="background:#b8c8de"></i>8 组待训练</span><span><i style="background:#d6ba79"></i>8 组生成中</span></div><figcaption>本次 K = 1，每组是一条轨迹。32 组相当于两批数据的总容量；一批训练完成后才腾出相应容量。它不保证轨迹最多落后两次更新。</figcaption></figure>
+      <figure><div class="figure-title">历史 buffer 对照：旧策略数据积压减少 <a href="assets/figures/opd-buffer.png" download>下载 PNG ↗</a></div><a href="assets/figures/opd-buffer.svg" aria-label="打开OPD策略滞后对照图"><img src="assets/figures/opd-buffer.svg" width="920" height="325" loading="lazy" alt="不限制总缓冲与buffer32的平均滞后为8.29和1.03次更新，最大滞后为20和4次更新。"></a><figcaption>历史 Airline/Retail OPD 实验。图中是实测滞后，不是配置上限；无上限组还经历了故障恢复。任务成功率对照没有得出 buffer32 全面更优的结论。</figcaption></figure>
+      <p>最终设置为 <code>TAU2_MAX_BUFFERED_GROUPS=32</code>，并保留 <code>TAU2_MAX_POLICY_LAG=-1</code>，即不设固定滞后步数限制。TIS 负责概率差异修正，缓冲总量负责减少排队，两者同时使用。</p>
+      <details><summary>另两项采用的调参结论与最终训练配置</summary><p><strong>学习率采用 2e−6。</strong>历史同配置、同训练随机种子的 2e−6 / 5e−6 对照中，三领域两评测 seed 的平均 pass@1 为 55.125% / 49.75%。它支持这次选择，但不是当前四领域最终模型的成绩。</p><p><strong>使用当前学生的概率计算 OPD 优势。</strong>行为策略的概率只进入 TIS；把行为概率也代入教师减学生的优势，会在滞后采样下改变目标。保留每 10 次更新后的额外概率诊断，观察真实更新幅度。</p><div class="table-scroll"><table><thead><tr><th>项目</th><th>最终配置</th></tr></thead><tbody><tr><td>学生与非 Airline 教师</td><td>2026-09-25 Mix RL iter139；学生使用新优化器</td></tr><tr><td>Airline 教师</td><td>同源 SFT4505 训练出的 Airline expert iter29</td></tr><tr><td>训练任务</td><td>Airline 1,148 / Retail 563 / Telecom 271 / Banking 542；打乱任务池，不设逐域 batch 配额</td></tr><tr><td>训练信号</td><td>纯 OPD，系数 1；任务奖励、额外 KL、entropy 系数均为 0</td></tr><tr><td>批次与更新</td><td>K1、batch16、LR2e−6；训练共 160 次更新，最终采用第 60 次更新后的 iter59</td></tr><tr><td>GPU 资源</td><td>训练 8 卡 + 常驻 User 4 卡 + 两教师共 4 卡，总计 16 卡</td></tr><tr><td>异步配置</td><td>pool32、pending64、total buffer32；4 个环境进程；TIS [0,2]</td></tr><tr><td>User</td><td>Qwen3.6-27B，关闭 thinking，temperature 0，每轮最多 512 tokens</td></tr></tbody></table></div></details>
+      <h3>最终选择 iter59，保留完整 checkpoint 对比</h3>
+      <p>iter59 是 60 次 OPD 更新后的模型。Airline pass@1 / pass@4(any) / pass^4 从初始化的 <strong>40.00 / 70.00 / 15.00%</strong> 变为 <strong>51.25 / 75.00 / 20.00%</strong>。其他三域合计的成功轨迹由 214 / 708 变为 211 / 708，对应 pass@1 保留率 <strong>211 / 214 = 98.6%</strong>。</p>
+      <figure><div class="figure-title">各 OPD checkpoint 的四领域总体结果 <a href="assets/figures/opd-checkpoints.png" download>下载 PNG ↗</a></div><a href="assets/figures/opd-checkpoints.svg" aria-label="打开OPD checkpoint比较图"><img src="assets/figures/opd-checkpoints.svg" width="1000" height="335" loading="lazy" alt="OPD iter9到iter59的三种成功率曲线；虚线是Mix139初始化，iter59为最终选择，iter9与iter19的总体pass@1更高。"></a><figcaption>完整评测快照：2026-09-29 19:58 CST。横轴是从 0 开始的 checkpoint iter，iter59 对应 60 次更新。仅连接已评测点，不表示中间每步都评测过。</figcaption></figure>
+      <p class="note">iter59 是项目最终选择，并非所有指标的最高点；iter9、iter19 的总体 pass@1 都是 32.99%。最终模型也未完全达到 Airline 教师的 53.75 / 75.00 / 35.00%。如实保留这些差异，不把 checkpoint 选择写成全面领先。</p>
+      <p class="source-note">依据：<a href="sources.html#opd">最终双教师实验与历史调参</a><a href="sources.html#checkpoint-table">全部完整 checkpoint 数值</a></p>
+    </section>
+
+    <section class="chapter" id="results">
+      <div class="chapter-num">07 / 最终结果</div>
+      <h2>从 Raw 到 SFT、Mix RL，再到 OPD</h2>
+      <p>以下四个模型使用相同的官方四领域评测协议。所有阶段都展示同一个 checkpoint 的三项成绩，没有把不同迭代的最佳指标拼在一起。</p>
+      <div id="protocol" class="example"><div class="example-title">统一评测条件</div><p class="small">Airline 20 题、Retail 40 题、Telecom 40 题、Banking 97 题，每题 4 trials，共 788 条轨迹。seed 300；Agent temperature 0.6、top_p 1、每轮最多 1,200 tokens；User 为 Qwen3.6-27B，关闭 thinking，temperature 0、每轮最多 512 tokens；max_steps 200、max_errors 10；Banking 使用 BM25。</p><p class="small">总体按 197 个任务加权，不是四领域等权平均。<strong>pass@1</strong> 是 trial 成功比例；<strong>pass@4(any)</strong> 是至少一次成功的任务比例；<strong>pass^4</strong> 是四次全部成功的任务比例。图中单位均为 %；pp 表示百分点。</p></div>
+      <fieldset class="metric-picker" data-chart-picker><legend>选择图表指标</legend><label><input type="radio" name="metric" value="pass_at_1" checked><span>pass@1</span></label><label><input type="radio" name="metric" value="pass_at_4_any"><span>pass@4(any)</span></label><label><input type="radio" name="metric" value="pass_power_4"><span>pass^4</span></label></fieldset>
+      <p class="metric-summary" id="metric-summary" aria-live="polite">pass@1：成功轨迹数 149 → 220 → 246 → 252，分母均为 788。Raw 到最终 OPD 的相对提升为 69.13%。</p>
+      <figure><div class="figure-title">四阶段总体成绩 <a id="stages-download" href="assets/figures/stages-pass_at_1.png" download>下载当前图 PNG ↗</a></div><a id="stages-large" href="assets/figures/stages-pass_at_1.svg" aria-label="打开四阶段总体成绩大图"><img id="stages-chart" src="assets/figures/stages-pass_at_1.svg" width="920" height="350" loading="lazy" alt="Raw、SFT、Mix RL、OPD的总体pass@1分别为18.91%、27.92%、31.22%、31.98%。"></a><figcaption>同协议四领域官方结果，最终列固定为 OPD iter59。数据从原始 summary 导出，下表同时列出全部指标。</figcaption></figure>
+      <div class="table-scroll"><table class="numeric"><caption>主线模型 · 数值为成功率（%）</caption><thead><tr><th>阶段</th><th>pass@1</th><th>pass@4(any)</th><th>pass^4</th></tr></thead><tbody><tr><td>Raw Instruct</td><td>18.91</td><td>31.98</td><td>8.63</td></tr><tr><td>SFT iter4505</td><td>27.92</td><td>43.15</td><td>13.20</td></tr><tr><td>Mix RL iter139</td><td>31.22</td><td>48.73</td><td>13.71</td></tr><tr class="selected-row"><td>OPD iter59 · 最终</td><td>31.98</td><td>48.22</td><td>14.21</td></tr></tbody></table></div>
+      <div class="table-scroll"><table class="numeric"><caption>相对上一个阶段的变化 · 单位：百分点（pp）</caption><thead><tr><th>训练阶段</th><th>pass@1</th><th>pass@4(any)</th><th>pass^4</th></tr></thead><tbody><tr><td>Raw → SFT</td><td>+9.01</td><td>+11.17</td><td>+4.57</td></tr><tr><td>SFT → Mix RL</td><td>+3.30</td><td>+5.58</td><td>+0.51</td></tr><tr><td>Mix RL → OPD</td><td>+0.76</td><td class="negative">−0.51</td><td>+0.51</td></tr></tbody></table></div>
+      <p class="note">增量由未舍入的原始计数计算后保留两位小数，故分别显示的增量相加可能有 0.01 pp 的舍入差。OPD 的整体 pass@4(any) 减少 1 题（96 → 95），没有在三项指标上同时超过 Mix RL。</p>
+      <figure><div class="figure-title">分领域看，哪些能力改变了 <a id="domains-download" href="assets/figures/domains-pass_at_1.png" download>下载当前图 PNG ↗</a></div><a id="domains-large" href="assets/figures/domains-pass_at_1.svg" aria-label="打开分领域成绩大图"><img id="domains-chart" src="assets/figures/domains-pass_at_1.svg" width="920" height="400" loading="lazy" alt="四阶段的分域pass@1。最终OPD的Airline为51.25%、Retail为65%、Telecom为54.375%、Banking为5.155%。"></a><figcaption>该图随上方指标选择同步切换。各领域始终使用同一组任务，但任务数和难度不同；Banking 仍是最终模型的主要不足。</figcaption></figure>
+      <div class="table-scroll"><table class="numeric"><caption>最终 OPD iter59 · 分领域完整成绩（%）</caption><thead><tr><th>领域</th><th>任务数</th><th>pass@1</th><th>pass@4(any)</th><th>pass^4</th></tr></thead><tbody><tr><td>Airline</td><td>20</td><td>51.25</td><td>75.00</td><td>20.00</td></tr><tr><td>Retail</td><td>40</td><td>65.00</td><td>85.00</td><td>47.50</td></tr><tr><td>Telecom</td><td>40</td><td>54.38</td><td>87.50</td><td>12.50</td></tr><tr><td>Banking</td><td>97</td><td>5.15</td><td>11.34</td><td>0.00</td></tr><tr class="selected-row"><td>总体</td><td>197</td><td>31.98</td><td>48.22</td><td>14.21</td></tr></tbody></table></div>
+      <h3>这些结果支持什么</h3>
+      <p>在这组固定评测中，完整训练主线提升了原始模型的任务完成率；信用分配配方在同预算 iter139 对照中取得正向增量；双教师 OPD 提高了 Airline 的三项指标，并保留了其他三域合计 98.6% 的 pass@1。</p>
+      <p>不同指标也显示了取舍：最终 OPD 的 Telecom pass^4 从 Mix 的 20.00% 降至 12.50%，Banking 四次全成功率仍为 0。单个训练 run、单个评测 seed 以及多次 checkpoint 比较，尚不足以证明收益在不同随机种子下都稳定存在。</p>
+      <div class="downloads"><a href="data/results.csv" download>下载完整模型结果 CSV</a><a href="data/results.json" download>下载原精度指标 JSON</a><a href="sources.html#checkpoint-table">查看 11 个完整模型对比 →</a></div>
+      <noscript><p class="note">当前未启用 JavaScript，图表显示 pass@1。完整三指标已在表格中列出，也可下载结果文件。</p></noscript>
+    </section>
+    <section class="chapter" id="reading">
+      <div class="chapter-num">继续查阅</div><h2>实验依据与历史资料</h2>
+      <p>正文讲解最终采用的项目过程。早期不同 User、不同数据版本、旧四教师 OPD 等实验保留在历史入口，便于了解探索过程；它们的成绩不并入当前主线对比。</p>
+      <ul class="sources-list"><li><a href="sources.html"><strong>当前主线的数据与依据 →</strong></a><p>各节来源、完整 checkpoint 结果、辅助指标，以及图表使用的数据。</p></li><li><a href="history/index.html"><strong>历史项目页面 · 2026-09-23 →</strong></a><p>保留旧版页面，明确标记为历史结果。当前最终模型为本页的 OPD iter59。</p></li><li><a href="https://github.com/shihaofu2003/slime"><strong>代码仓库 ↗</strong></a><p>基于 slime 的模型后训练实现；实验使用 tau2-bench 目录下的客服环境集成。</p></li></ul>
+    </section>
+  </main>
 </div>
-
-<!-- ==================== 1 引言 ==================== -->
-<section id="intro">
-<div class="wrap">
-  <h2><span class="no">1</span>引言</h2>
-
-  <p>让大模型担任客服 Agent，不只是“会聊天”：它需要在几十轮对话中理解用户需求、检索政策文档、调用后端工具真正改变业务状态（改签一张机票、处理一笔退款、冻结一张遗失的银行卡），并妥善处理与用户的协作分工。tau-bench 系列基准正是为评估这类<b>长程、工具驱动</b>的 Agent 而设计：一个模拟用户与 Agent 多轮交互，环境执行工具并校验最终数据库状态，四次重复试验全部成功才算真正“学会”一个任务。</p>
-
-  <p>然而，对这类 Agent 做强化学习后训练，会立即遇到三堵墙：</p>
-  <ul class="plain">
-    <li><b>评测慢。</b>一次忠实评测要运行数百条完整的“Agent—用户—工具”对话，逐条串行执行需要近 3 小时，严重拖慢迭代节奏。</li>
-    <li><b>数据脏。</b>开源 SFT 数据里混着失败对话与标注冲突，“整段对话最终成功”并不代表每一步操作都值得模仿；客服与用户的工具权限还经常混淆。</li>
-    <li><b>奖励稀疏。</b>几十轮操作结束才得到一个 0/1 任务奖励，哪一步做对、哪一步做错完全没有区分度；同一任务的 8 条采样轨迹全对或全错时，GRPO 甚至学不到任何组内信号。</li>
-  </ul>
-
-  <p>本项目围绕上述问题，独立完成了从<b>评测基建</b>到<b>数据</b>、<b>任务</b>、<b>训练系统</b>、<b>奖励设计</b>再到<b>模型汇集</b>的完整后训练链路，如图 1 所示。六项工作按序衔接：前一项的产出是后一项的输入。</p>
-
-  <figure>
-    <svg viewBox="0 0 880 150" role="img" aria-label="后训练全链路总览">
-      <defs>
-        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
-        </marker>
-      </defs>
-      <!-- six stages -->
-      <g font-family="inherit">
-        <!-- stage template: x = 10,152,294,436,578,720 -->
-        <g>
-          <rect x="10" y="30" width="126" height="70" rx="10" fill="#eef4ff" stroke="#c7d8f5"/>
-          <circle cx="28" cy="48" r="9" fill="#2f6fd6"/><text x="28" y="52" font-size="11" fill="#fff" text-anchor="middle">1</text>
-          <text x="73" y="52" font-size="13.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">异步评测</text>
-          <text x="73" y="74" font-size="11" fill="#64748b" text-anchor="middle">4.88× 加速</text>
-        </g>
-        <g>
-          <rect x="152" y="30" width="126" height="70" rx="10" fill="#eef4ff" stroke="#c7d8f5"/>
-          <circle cx="170" cy="48" r="9" fill="#2f6fd6"/><text x="170" y="52" font-size="11" fill="#fff" text-anchor="middle">2</text>
-          <text x="215" y="52" font-size="13.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">数据治理</text>
-          <text x="215" y="74" font-size="11" fill="#64748b" text-anchor="middle">30,376 条样本</text>
-        </g>
-        <g>
-          <rect x="294" y="30" width="126" height="70" rx="10" fill="#eef4ff" stroke="#c7d8f5"/>
-          <circle cx="312" cy="48" r="9" fill="#2f6fd6"/><text x="312" y="52" font-size="11" fill="#fff" text-anchor="middle">3</text>
-          <text x="357" y="52" font-size="13.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">任务构造</text>
-          <text x="357" y="74" font-size="11" fill="#64748b" text-anchor="middle">647 个场景</text>
-        </g>
-        <g>
-          <rect x="436" y="30" width="126" height="70" rx="10" fill="#eef4ff" stroke="#c7d8f5"/>
-          <circle cx="454" cy="48" r="9" fill="#2f6fd6"/><text x="454" y="52" font-size="11" fill="#fff" text-anchor="middle">4</text>
-          <text x="499" y="52" font-size="13.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">异步 RL</text>
-          <text x="499" y="74" font-size="11" fill="#64748b" text-anchor="middle">4.60× 提速</text>
-        </g>
-        <g>
-          <rect x="578" y="30" width="126" height="70" rx="10" fill="#eef4ff" stroke="#c7d8f5"/>
-          <circle cx="596" cy="48" r="9" fill="#2f6fd6"/><text x="596" y="52" font-size="11" fill="#fff" text-anchor="middle">5</text>
-          <text x="641" y="52" font-size="13.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">信用分配</text>
-          <text x="641" y="74" font-size="11" fill="#64748b" text-anchor="middle">逐轮过程奖励</text>
-        </g>
-        <g>
-          <rect x="720" y="30" width="126" height="70" rx="10" fill="#e6fcf5" stroke="#b2e8d4"/>
-          <circle cx="738" cy="48" r="9" fill="#0ca678"/><text x="738" y="52" font-size="11" fill="#fff" text-anchor="middle">6</text>
-          <text x="789" y="52" font-size="13" font-weight="600" fill="#0b6e4f" text-anchor="middle">多教师蒸馏</text>
-          <text x="789" y="74" font-size="11" fill="#64748b" text-anchor="middle">93.4% 保留</text>
-        </g>
-        <!-- arrows -->
-        <line x1="136" y1="65" x2="150" y2="65" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
-        <line x1="278" y1="65" x2="292" y2="65" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
-        <line x1="420" y1="65" x2="434" y2="65" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
-        <line x1="562" y1="65" x2="576" y2="65" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
-        <line x1="704" y1="65" x2="718" y2="65" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
-        <text x="440" y="130" font-size="12" fill="#94a3b8" text-anchor="middle">评测基建 → 训练数据 → 训练任务 → 训练系统 → 奖励信号 → 模型汇集</text>
-      </g>
-    </svg>
-    <figcaption>图 1 ｜ 后训练全链路总览：六项工作按序衔接，每项的产出是下一项的输入。</figcaption>
-  </figure>
-
-  <div class="card">
-    <b>主要贡献：</b>
-    <ul class="plain contrib">
-      <li><b>异步评测框架：</b>Agent/User 共享推理池 + 跨领域弹性并发，三领域评测加速 4.88×、GPU-hours 降低 59.0%（§3.1）。</li>
-      <li><b>SFT 数据质量治理：</b>从 33,531 条开源样本重建 30,376 条规范监督样本，根治了后续 RL 训练的行为坍塌（+28.00pp）（§3.2）。</li>
-      <li><b>Banking 任务构造：</b>面向无数据领域程序化构造 647 个可回放验证的场景与 5,672 条 SFT 样本（§3.3）。</li>
-      <li><b>异步 Agentic RL 系统：</b>采样与训练重叠、环境多进程化，20 次更新提速 4.60×，GPU 利用率 21.5% → 76.2%（§3.4）。</li>
-      <li><b>逐轮信用分配：</b>基于状态进度的过程奖励，从同一 SFT 训练出四个领域专家（§3.5）。</li>
-      <li><b>多教师 On-Policy 蒸馏：</b>将四位专家汇集为单一学生模型，保留教师 93.4% 的任务完成能力（§3.6）。</li>
-    </ul>
-  </div>
-</div>
-</section>
-
-<!-- ==================== 2 相关工作 ==================== -->
-<section id="related">
-<div class="wrap">
-  <h2><span class="no">2</span>相关工作</h2>
-
-  <h3><span class="no">2.1</span>工具调用 Agent 与客服基准</h3>
-  <p>tau-bench（Sierra）首次将“Agent ↔ 模拟用户 ↔ 工具环境”三元交互制度化，用最终数据库状态而非对话表面来评分，并要求多次重复试验以度量一致性（pass^k）；后续的 tau2-bench 扩展了更复杂的领域策略与双向工具协作。本项目使用其四领域版本（下称 tau3-benchmark，含 Airline、Retail、Telecom、Banking 共 197 个官方评测任务），并针对无训练数据的 Banking 领域自行构造训练任务（§3.3）。</p>
-
-  <h3><span class="no">2.2</span>大模型后训练与 Agentic RL</h3>
-  <p>SFT 是后训练的起点，但其效果高度依赖数据质量——本项目的治理工作（§3.2）表明，数据配方差异在后续 RL 中会被放大为“坍塌与不坍塌”的分野。强化学习方面，PPO/RLHF 奠定了偏好优化范式；GRPO（DeepSeekMath）以同组轨迹的相对优势替代价值网络，因实现简洁成为 Agentic RL 的常用基线。本项目在 GRPO 之上叠加逐轮过程奖励（§3.5），并处理了异步采样带来的策略滞后问题（§3.4）。</p>
-
-  <h3><span class="no">2.3</span>长程任务的信用分配</h3>
-  <p>结果奖励（outcome reward）只有终局一个标量，无法区分几十轮操作中各自的贡献。过程奖励（process reward）与步骤级信用分配试图为中间步骤提供信号，但多数做法依赖额外训练的打分模型或人工标注。本项目不引入任何打分模型：利用环境<b>可回放</b>的特性，用参考解法的目标数据库定义状态势函数，以相邻决策的势差作为逐轮局部奖励（§3.5）。</p>
-
-  <h3><span class="no">2.4</span>知识蒸馏与 On-Policy Distillation</h3>
-  <p>经典序列级蒸馏让学生模仿教师生成的文本；on-policy distillation（如 GKD）则在<b>学生自己采样</b>的轨迹上计算教师信号，使学生为“自己会犯的错误”获得反馈。本项目将这一思想扩展为<b>多教师</b>设置：四个领域专家作为冻结评分服务，按任务领域路由，对学生实际生成的每个 token 构造 reverse-KL 优势，并与异步训练流水线共存（§3.6）。</p>
-
-  <h3><span class="no">2.5</span>RL 训练系统</h3>
-  <p>slime（THUDM）、AReaL（蚂蚁）、verl（字节）等框架为 LLM 强化学习提供 Megatron + Ray + SGLang 的分布式底座。本项目基于 slime 实现：持续采样 producer 与 Trainer 重叠、真实生成 token 与逐 token 概率的对齐、环境交互多进程化，以及超长轨迹的重采样机制（§3.4）。</p>
-</div>
-</section>
-
-<!-- ==================== 3 方法 ==================== -->
-<section id="method">
-<div class="wrap">
-  <h2><span class="no">3</span>方法</h2>
-
-  <!-- ========== 3.1 异步评测 ========== -->
-  <h3><span class="no">3.1</span>异步 benchmark 评测</h3>
-  <div class="method">
-    <p><span class="tag prob">问题</span>一次模型验证要运行三领域 400 条完整对话轨迹。旧流程逐领域、逐轨迹串行，一条轨迹等待用户模拟器回复时，其他轨迹无法填补 Agent 推理的空闲；串行基线耗时 174–230 分钟。</p>
-    <p><span class="tag sol">方法</span>将 Agent 与用户模拟器部署为<b>共享推理池</b>（2 个 TP1 Agent 副本 + 3 个 TP2 User 副本），三个领域进程内的轨迹线程并发交错执行；每个领域持有跨进程并发信号量，<b>先完成的领域自动把槽位让给慢领域</b>；按逐请求计时定位瓶颈后，将 User 路由从 cache-aware 改为 round-robin，使三个 User 副本均匀分担负载。</p>
-    <figure>
-      <svg viewBox="0 0 880 250" role="img" aria-label="异步评测架构">
-        <defs>
-          <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
-          </marker>
-        </defs>
-        <g font-family="inherit">
-          <rect x="20" y="20" width="180" height="44" rx="8" fill="#fff" stroke="#c7d8f5"/>
-          <text x="110" y="38" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">评测主进程</text>
-          <text x="110" y="55" font-size="10.5" fill="#64748b" text-anchor="middle">并发槽位分配与转移</text>
-          <rect x="20" y="84" width="180" height="34" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="110" y="105" font-size="12" fill="#1e3a6e" text-anchor="middle">Airline 领域进程</text>
-          <rect x="20" y="128" width="180" height="34" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="110" y="149" font-size="12" fill="#1e3a6e" text-anchor="middle">Retail 领域进程</text>
-          <rect x="20" y="172" width="180" height="34" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="110" y="193" font-size="12" fill="#1e3a6e" text-anchor="middle">Telecom 领域进程</text>
-          <line x1="200" y1="42" x2="254" y2="42" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="200" y1="101" x2="254" y2="70" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="200" y1="145" x2="254" y2="95" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="200" y1="189" x2="254" y2="120" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <rect x="256" y="30" width="190" height="176" rx="10" fill="#fff" stroke="#c7d8f5"/>
-          <text x="351" y="52" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">轨迹线程池</text>
-          <text x="351" y="76" font-size="11" fill="#64748b" text-anchor="middle">多轨迹并发交错执行</text>
-          <text x="351" y="96" font-size="11" fill="#64748b" text-anchor="middle">每条轨迹独立环境与消息历史</text>
-          <text x="351" y="116" font-size="11" fill="#64748b" text-anchor="middle">全局并发上限 9</text>
-          <text x="351" y="140" font-size="11" fill="#0ca678" text-anchor="middle">完成的领域释放槽位</text>
-          <text x="351" y="160" font-size="11" fill="#0ca678" text-anchor="middle">让渡给未完成领域</text>
-          <rect x="500" y="40" width="140" height="52" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="570" y="60" font-size="12" font-weight="600" fill="#1e3a6e" text-anchor="middle">Agent Router</text>
-          <text x="570" y="78" font-size="10.5" fill="#64748b" text-anchor="middle">cache 感知</text>
-          <rect x="500" y="130" width="140" height="52" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="570" y="150" font-size="12" font-weight="600" fill="#1e3a6e" text-anchor="middle">User Router</text>
-          <text x="570" y="168" font-size="10.5" fill="#64748b" text-anchor="middle">轮询 round-robin</text>
-          <line x1="446" y1="70" x2="498" y2="62" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="446" y1="150" x2="498" y2="154" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <rect x="690" y="30" width="170" height="72" rx="8" fill="#e6fcf5" stroke="#b2e8d4"/>
-          <text x="775" y="52" font-size="12" font-weight="600" fill="#0b6e4f" text-anchor="middle">Agent 推理池</text>
-          <text x="775" y="70" font-size="10.5" fill="#64748b" text-anchor="middle">2 个 TP1 副本</text>
-          <text x="775" y="88" font-size="10.5" fill="#64748b" text-anchor="middle">（GPU 0;1）</text>
-          <rect x="690" y="120" width="170" height="72" rx="8" fill="#e6fcf5" stroke="#b2e8d4"/>
-          <text x="775" y="142" font-size="12" font-weight="600" fill="#0b6e4f" text-anchor="middle">User 推理池</text>
-          <text x="775" y="160" font-size="10.5" fill="#64748b" text-anchor="middle">3 个 TP2 副本</text>
-          <text x="775" y="178" font-size="10.5" fill="#64748b" text-anchor="middle">（GPU 2–7）</text>
-          <line x1="640" y1="66" x2="688" y2="66" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="640" y1="156" x2="688" y2="156" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <text x="440" y="236" font-size="12" fill="#94a3b8" text-anchor="middle">有效轨迹并行度 4.53× → 7.75×；User 请求分布从不均（1033/1470/0）变为完全均匀（2012/2012/2012）</text>
-        </g>
-      </svg>
-      <figcaption>图 2 ｜ 异步评测架构：领域进程 × 轨迹线程并发 × 共享推理池，配合弹性槽位让渡与轮询路由。</figcaption>
-    </figure>
-    <p><span class="tag res">结果</span>三领域 100 题 × 4 次试验的端到端耗时由 174.26 min 降至 <strong class="num">35.71 min</strong>（<strong class="num">4.88×</strong>），GPU-hours 降低 <strong class="num">59.0%</strong>。该框架随后支撑了全部四领域（788 条轨迹/轮）的官方评测。</p>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <caption>表 1 ｜ 异步评测迭代对照（三领域 100 题 × 4 次试验，GPU-hours 按申请卡数计）</caption>
-        <thead><tr><th>配置</th><th class="l">执行方式</th><th>耗时 (min)</th><th>GPU-hours</th><th>相对基线加速</th></tr></thead>
-        <tbody>
-          <tr><td>串行基线 A</td><td class="l">2 卡 · TP1 User · 逐轨迹串行</td><td>229.94</td><td>7.66</td><td>0.76×</td></tr>
-          <tr><td>串行基线 B</td><td class="l">4 卡 · TP2 User · 逐轨迹串行</td><td>174.26</td><td>11.62</td><td>1.00×</td></tr>
-          <tr><td>异步 v1</td><td class="l">8 卡 · 固定域并发 3:3:3</td><td>52.84</td><td>7.05</td><td>3.30×</td></tr>
-          <tr><td><b>异步 v2（最终）</b></td><td class="l">8 卡 · 弹性借槽 + User 轮询路由</td><td><b>35.71</b></td><td><b>4.76</b></td><td><b>4.88×</b></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">口径说明：该组数字来自历史三领域协议（2026-09-01）；后续四领域原生协议用于所有模型质量结论。加速比的收益来自并发、副本配比与布局的整体变化。</div>
-  </div>
-
-  <!-- ========== 3.2 数据治理 ========== -->
-  <h3><span class="no">3.2</span>Agentic SFT 数据质量治理</h3>
-  <div class="method">
-    <p><span class="tag prob">问题</span>AReaL 开源的三领域 SFT 数据有 33,531 行，但审计发现：约四分之一的训练行来自失败或标注冲突的对话；工具返回被写成纯文本、客服与用户的工具权限不分；一轮塞进多个工具调用，与“每轮至多一个调用”的领域策略直接冲突。<b>“整段对话最终成功”不代表每一步都值得模仿</b>——终局标签无法区分局部错误与有效步骤。</p>
-    <p><span class="tag sol">方法</span>不依赖终局标签，逐类审计并从源数据重建官方原生格式：仅保留标签一致的双成功对话；将一轮多调用<b>展开为逐轮原子监督</b>（后续调用的上下文插入前一调用的真实工具返回）；隐藏用户侧工具调用但保留其自然语言报告；只监督每行最后一个 Assistant 目标，历史消息全部 mask；按真实渲染后的长度过滤超长样本。另以本地 27B 模型做逐目标双轮语义评审做消融验证。</p>
-    <figure>
-      <svg viewBox="0 0 880 220" role="img" aria-label="数据治理漏斗">
-        <g font-family="inherit">
-          <!-- bars: widths proportional to count (max 520), value labels to the right -->
-          <rect x="250" y="24" width="520" height="32" rx="6" fill="#94a3b8"/>
-          <text x="20" y="44" font-size="12.5" fill="#343a40">原始 AReaL 三领域数据</text>
-          <text x="778" y="45" font-size="13" font-weight="700" fill="#334155">33,531 行</text>
-          <rect x="250" y="72" width="385" height="32" rx="6" fill="#7c9dd8"/>
-          <text x="20" y="92" font-size="12.5" fill="#343a40">标签一致且双成功的对话</text>
-          <text x="643" y="93" font-size="13" font-weight="700" fill="#334155">24,816 行</text>
-          <rect x="250" y="120" width="491" height="32" rx="6" fill="#4d7fd6"/>
-          <text x="20" y="140" font-size="12.5" fill="#343a40">多工具调用展开为原子监督</text>
-          <text x="749" y="141" font-size="13" font-weight="700" fill="#334155">31,679（↑ 展开）</text>
-          <rect x="250" y="168" width="471" height="32" rx="6" fill="#2f6fd6"/>
-          <text x="20" y="188" font-size="12.5" fill="#343a40">删除超长样本（−1,303）</text>
-          <text x="729" y="189" font-size="13" font-weight="700" fill="#1d4ed8">30,376 条</text>
-          <text x="440" y="212" font-size="11.5" fill="#94a3b8" text-anchor="middle">最终样本 = 13,979 文本 + 16,397 工具调用 ｜ Airline 13,783 / Retail 13,614 / Telecom 2,979 ｜ 最长 16,382 tokens</text>
-        </g>
-      </svg>
-      <figcaption>图 3 ｜ 数据重建漏斗：从 33,531 行原始数据到 30,376 条逐轮原子监督样本。</figcaption>
-    </figure>
-    <p><span class="tag res">结果</span>治理的价值在后续 RL 中被放大验证：在完全相同的 100 次 GRPO 更新下，用未治理数据初始化的训练中途<b>行为坍塌</b>（持续复制工具说明、形成空参数调用，pass@1 跌至 22.75%），治理后初始化的训练保持 <strong class="num">50.75%</strong>（<strong class="num">+28.00pp</strong>，配对 95% CI [+21.75, +34.38]）。</p>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <caption>表 2 ｜ 数据配方对照（官方原生协议，三领域，两个评测 seed 均值；RL 为相同 100 次无 KL GRPO 更新）</caption>
-        <thead><tr><th class="l">初始化 / 训练</th><th>pass@1</th><th>pass@4(any)</th><th>pass^4</th></tr></thead>
-        <tbody>
-          <tr><td class="l">Raw-all SFT（未治理对照）</td><td>53.13%</td><td>82.50%</td><td>23.00%</td></tr>
-          <tr><td class="l">Processed SFT（治理后）</td><td>55.75%</td><td>81.00%</td><td><b>28.00%</b></td></tr>
-          <tr><td class="l">Raw-all SFT + GRPO</td><td class="delta-neg">22.75%（行为坍塌）</td><td>42.50%</td><td>12.50%</td></tr>
-          <tr><td class="l"><b>Processed SFT + GRPO</b></td><td><b>50.75%</b>（+28.00pp）</td><td>80.00%</td><td>22.50%</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">负结果（§4.4）：治理后再用 27B 模型逐目标双审删除 675 条可疑样本，受控重训反而退步，因此保留 30,376 条配方——评审能定位语义错误，但删除量本身不保证下游收益。</div>
-  </div>
-
-  <!-- ========== 3.3 任务构造 ========== -->
-  <h3><span class="no">3.3</span>Banking 任务构造</h3>
-  <div class="method">
-    <p><span class="tag prob">问题</span>Banking 领域没有任何现成训练数据；官方任务又过难——一条任务往往同时要求“找政策—读事实—确认实体—判断资格—验证身份—发现工具—协同操作—核对状态”，4B 模型官方成功率仅 2.58%，直接采样几乎采不到成功示范，GRPO 同组轨迹全失败、缺少组内差异。</p>
-    <p><span class="tag sol">方法</span>将复杂客服流程拆解为事实抽取、知识检索、规则判断、工具执行、用户协作等<b>原子能力</b>，按“单项能力—能力组合—完整工作流”设计 7 种任务形态（L1–L6），覆盖 15 类银行业务与正常办理、拒绝办理、动态工具、多实体等情形。<b>程序与大模型分工</b>：程序生成全新的客户、账户、交易、初始数据库与判分条件（与官方测试实例严格隔离），大模型仅负责把用户开场改写自然。每个任务的参考解法都在真实环境中逐步回放，确认可执行且判分正确。</p>
-    <p><span class="tag res">结果</span>最终构造 <strong class="num">647 个场景</strong>（训练/开发/挑战 = 542/75/30），参考回放 <strong class="num">647/647 全部通过</strong>；采集模型自主交互的成功轨迹，用 27B 模型提议删除冗余步骤、再经语义复核与环境重放，产出 <strong class="num">5,672 条 SFT 样本</strong>（同批轨迹 token 总量 −58.7%）。训练后官方 97 题 pass@4 由 4.12% 升至 <strong class="num">9.28%</strong>。</p>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <caption>表 3 ｜ Banking SFT 官方任务对照（97 题 × 4 次试验，seed 300，BM25 检索）</caption>
-        <thead><tr><th class="l">模型</th><th>pass@1</th><th>pass@4(any)</th><th>pass^4</th></tr></thead>
-        <tbody>
-          <tr><td class="l">原始 Qwen3-4B-Instruct-2507</td><td>2.58%</td><td>4.12%</td><td>1.03%</td></tr>
-          <tr><td class="l">+ 部分精简数据 SFT（1,782 条）</td><td>4.12%</td><td><b>9.28%</b></td><td>0.00%</td></tr>
-          <tr><td class="l"><b>+ 全量精简数据 SFT（5,672 条）</b></td><td><b>4.38%</b></td><td><b>9.28%</b></td><td>1.03%</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">口径说明：Banking 官方任务绝对成功率仍低（单评测 seed 点估计）；该领域的核心价值是提供了此前不存在的训练任务与数据管线。所有构造任务与官方评测实例做了实体/请求/文档复用检查（发现数为 0）。</div>
-  </div>
-
-  <!-- ========== 3.4 异步 RL ========== -->
-  <h3><span class="no">3.4</span>异步 Agentic RL 训练系统</h3>
-  <div class="method">
-    <p><span class="tag prob">问题</span>RL 阶段模型要现场与用户交互、调用工具：一条轨迹可达数十轮，少数慢轨迹拖住整批训练；工具返回与历史不断增长，单条超长对话会让 log-prob 前向的 [T,V] logits 直接撑爆显存；即使推理 GPU 有空闲，单进程环境计算（数据库序列化、状态比较）受 GIL 限制，Trainer 仍长时间无数据可用。</p>
-    <p><span class="tag sol">方法</span>基于 slime（Megatron + Ray + SGLang）实现异步流水线：持续采样 producer 推进多条独立对话，同一任务的 8 条轨迹组成 GRPO 组，<b>完成即入队、Trainer 按完成顺序消费，空出名额即时补充新任务</b>；超长轨迹单独重采样（至多两次）而非截断，保证训练上下文与真实生成一致；记录每回合真实 prompt/输出 token、逐 token 行为概率与策略版本，以截断重要性采样（TIS）修正异步策略滞后；经 profiling 定位 CPU/GIL 瓶颈后，将环境交互与奖励计算拆至 <b>4 个 CPU 进程</b>并行，并缓存数据库快照减少重复计算。</p>
-    <figure>
-      <svg viewBox="0 0 880 280" role="img" aria-label="异步 RL 流水线">
-        <defs>
-          <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
-          </marker>
-        </defs>
-        <g font-family="inherit">
-          <rect x="20" y="30" width="170" height="60" rx="8" fill="#fff" stroke="#c7d8f5"/>
-          <text x="105" y="54" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">训练任务池</text>
-          <text x="105" y="74" font-size="10.5" fill="#64748b" text-anchor="middle">2,524 个任务 · 四领域</text>
-          <rect x="20" y="130" width="170" height="78" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="105" y="152" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">持续采样 Producer</text>
-          <text x="105" y="172" font-size="10.5" fill="#64748b" text-anchor="middle">完成即入队 · 空位即补</text>
-          <text x="105" y="190" font-size="10.5" fill="#64748b" text-anchor="middle">超长轨迹单独重采样</text>
-          <line x1="105" y1="90" x2="105" y2="128" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <rect x="250" y="30" width="210" height="100" rx="8" fill="#fff" stroke="#c7d8f5"/>
-          <text x="355" y="52" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">4 个 CPU 环境进程</text>
-          <text x="355" y="72" font-size="10.5" fill="#64748b" text-anchor="middle">工具执行 · 数据库状态 · 奖励计算</text>
-          <text x="355" y="92" font-size="10.5" fill="#64748b" text-anchor="middle">DB 快照缓存，消除 GIL 瓶颈</text>
-          <text x="355" y="112" font-size="10.5" fill="#0ca678" text-anchor="middle">CPU 利用 121% → 407–420%</text>
-          <line x1="190" y1="155" x2="246" y2="90" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <rect x="520" y="18" width="180" height="52" rx="8" fill="#e6fcf5" stroke="#b2e8d4"/>
-          <text x="610" y="40" font-size="12" font-weight="600" fill="#0b6e4f" text-anchor="middle">Agent 推理池（SGLang）</text>
-          <text x="610" y="58" font-size="10.5" fill="#64748b" text-anchor="middle">训练中 · 记录真实 token 与版本</text>
-          <rect x="520" y="88" width="180" height="52" rx="8" fill="#fff" stroke="#c7d8f5"/>
-          <text x="610" y="110" font-size="12" font-weight="600" fill="#1e3a6e" text-anchor="middle">冻结 User 服务</text>
-          <text x="610" y="128" font-size="10.5" fill="#64748b" text-anchor="middle">Qwen3.6-27B 模拟用户</text>
-          <line x1="460" y1="55" x2="518" y2="44" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <line x1="460" y1="100" x2="518" y2="112" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <rect x="250" y="170" width="210" height="66" rx="8" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="355" y="194" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">就绪组队列</text>
-          <text x="355" y="214" font-size="10.5" fill="#64748b" text-anchor="middle">K=8 完整轨迹组 · 按完成顺序消费</text>
-          <line x1="355" y1="130" x2="355" y2="168" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <rect x="520" y="170" width="180" height="66" rx="8" fill="#e6fcf5" stroke="#b2e8d4"/>
-          <text x="610" y="194" font-size="12.5" font-weight="600" fill="#0b6e4f" text-anchor="middle">Megatron Trainer</text>
-          <text x="610" y="214" font-size="10.5" fill="#64748b" text-anchor="middle">仅 Agent token 计 loss · TIS 修正</text>
-          <line x1="460" y1="203" x2="518" y2="203" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <path d="M700,203 C 760,203 760,44 702,44" fill="none" stroke="#e8590c" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#arr4)"/>
-          <text x="772" y="126" font-size="11" fill="#e8590c" text-anchor="middle">每次更新后同步权重</text>
-          <text x="440" y="266" font-size="12" fill="#94a3b8" text-anchor="middle">采样与训练重叠：Trainer 不再等慢轨迹；组就绪→Trainer 启动的间隔由 133.95 s 降至 0.85 s</text>
-        </g>
-      </svg>
-      <figcaption>图 4 ｜ 异步 Agentic RL 流水线：持续采样与 Trainer 更新重叠，环境计算四进程并行，权重按 Agent 调用边界同步。</figcaption>
-    </figure>
-    <p><span class="tag res">结果</span>相同初始化、相同预算（20 次更新、batch 128）下，采样与训练耗时由 370.22 min 降至 <strong class="num">80.46 min</strong>（<strong class="num">4.60×</strong>），Generator GPU 平均利用率由 21.54% 升至 <strong class="num">76.22%</strong>；该流水线支撑了后续四领域专家（140 次更新、17,920 条轨迹）与 160 次更新的 OPD 蒸馏训练。</p>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <caption>表 4 ｜ RL 流水线优化对照（Airline，前 20 次更新，相同 SFT 初始化与 User 配置）</caption>
-        <thead><tr><th class="l">指标</th><th>优化前</th><th>优化后</th></tr></thead>
-        <tbody>
-          <tr><td class="l">采样 + 训练耗时</td><td>370.22 min</td><td><b>80.46 min（4.60×）</b></td></tr>
-          <tr><td class="l">平均组就绪等待 / 每次更新</td><td>868.65 s</td><td>142.63 s</td></tr>
-          <tr><td class="l">组就绪 → Trainer 启动</td><td>133.95 s</td><td>0.85 s</td></tr>
-          <tr><td class="l">Trainer GPU 平均利用率</td><td>7.22%</td><td>33.73%</td></tr>
-          <tr><td class="l">Generator GPU 平均利用率</td><td>21.54%</td><td><b>76.22%</b></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">稳定性前提（§4.4）：早期 LR=1e-5 的配方在 49–71 步出现 KL 飙升、奖励归零与 backward NaN；改用 K2 KL（系数 0.01）+ 小学习率 2e-6 后，三组学习率均完成 100 次更新且无 NaN。</div>
-  </div>
-
-  <!-- ========== 3.5 信用分配 ========== -->
-  <h3><span class="no">3.5</span>基于状态进度的逐轮信用分配</h3>
-  <div class="method">
-    <p><span class="tag prob">问题</span>终局二元奖励无法区分“工具和实体都找对、只差一次写入”与“调用不存在的工具”——两者同样记 0；GRPO 又把整条轨迹的优势广播到所有 token，正确查询与错误执行共享同一训练方向。</p>
-    <p><span class="tag sol">方法</span>利用环境可回放的特性构造<b>状态势函数</b>：用相同初始状态回放参考动作得到目标数据库，定义 <em class="formula">Φ(s) = −distance(s, s_target)</em>（到目标状态的字段差异数取负；环境断言任务则取已满足断言比例）。每次 Agent 决策后读取真实状态，相邻决策的势差作为逐轮进度奖励，以 γ=0.98 折扣累积为 return；在同任务 K=8 条轨迹内，按“当前数据库相对初态的变化量”分桶做组内归一化，得到逐轮优势 Q，与 GRPO 终局优势相加；对格式错误、调用不存在工具、越权调用等行为施加局部惩罚，并通过消息索引映射到产生错误的 Assistant 轮次。</p>
-    <figure>
-      <svg viewBox="0 0 880 240" role="img" aria-label="状态进度信用分配示意">
-        <g font-family="inherit">
-          <!-- left chart -->
-          <text x="30" y="34" font-size="12.5" font-weight="600" fill="#1e3a6e">距目标数据库的差异字段数（越小越好）</text>
-          <!-- axes -->
-          <line x1="60" y1="200" x2="420" y2="200" stroke="#cbd5e1" stroke-width="1.2"/>
-          <line x1="60" y1="200" x2="60" y2="60" stroke="#cbd5e1" stroke-width="1.2"/>
-          <!-- y ticks: 0 at y=200, 1 at y=130, 2 at y=60 -->
-          <text x="52" y="204" font-size="10.5" fill="#94a3b8" text-anchor="end">0</text>
-          <text x="52" y="134" font-size="10.5" fill="#94a3b8" text-anchor="end">1</text>
-          <text x="52" y="64" font-size="10.5" fill="#94a3b8" text-anchor="end">2</text>
-          <text x="90" y="222" font-size="10.5" fill="#94a3b8" text-anchor="middle">决策轮 1</text>
-          <text x="190" y="222" font-size="10.5" fill="#94a3b8" text-anchor="middle">2</text>
-          <text x="290" y="222" font-size="10.5" fill="#94a3b8" text-anchor="middle">3</text>
-          <text x="390" y="222" font-size="10.5" fill="#94a3b8" text-anchor="middle">4</text>
-          <!-- trajectory A: dist [2,2,1,0] at turns 1..4 -->
-          <path d="M90,60 L190,60 L190,130 L290,130 L290,200 L390,200" fill="none" stroke="#2f6fd6" stroke-width="2.2"/>
-          <circle cx="90" cy="60" r="4" fill="#2f6fd6"/><circle cx="190" cy="60" r="4" fill="#2f6fd6"/>
-          <circle cx="290" cy="130" r="4" fill="#2f6fd6"/><circle cx="390" cy="200" r="4" fill="#2f6fd6"/>
-          <!-- trajectory B: dist [2,1,0] -->
-          <path d="M90,60 L190,60 L190,130 L290,130 L290,200" fill="none" stroke="#0ca678" stroke-width="2.2" stroke-dasharray="6,4"/>
-          <circle cx="90" cy="60" r="4" fill="#0ca678"/>
-          <circle cx="190" cy="130" r="4" fill="#0ca678"/><circle cx="290" cy="200" r="4" fill="#0ca678"/>
-          <text x="396" y="64" font-size="11" fill="#2f6fd6">轨迹 A</text>
-          <text x="300" y="188" font-size="11" fill="#0ca678">轨迹 B</text>
-          <text x="240" y="100" font-size="10.5" fill="#64748b">本轮进度 = Φ(下一状态) − Φ(当前状态)</text>
-          <!-- right formulas -->
-          <rect x="470" y="26" width="390" height="196" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
-          <text x="492" y="56" font-size="12.5" font-weight="600" fill="#1e3a6e">逐轮优势计算</text>
-          <text x="492" y="84" font-size="12.5" fill="#343a40">势函数  Φ(s) = −distance(s, s_target)</text>
-          <text x="492" y="110" font-size="12.5" fill="#343a40">逐轮进度  r_t = Φ(s_{t+1}) − Φ(s_t)</text>
-          <text x="492" y="136" font-size="12.5" fill="#343a40">折扣回报  H_t = Σ γ^(u−t) · r_u，γ = 0.98</text>
-          <text x="492" y="162" font-size="12.5" fill="#343a40">分桶归一化：按 DB 变化量在 K=8 轨迹内比较</text>
-          <text x="492" y="194" font-size="13" font-weight="700" fill="#1d4ed8">A_turn = GN(R) + w_prog · Q + w_fmt · F</text>
-        </g>
-      </svg>
-      <figcaption>图 5 ｜ 状态进度信用分配：以到目标状态的差异为势函数，把工具执行与用户协作产生的进展与回退转化为逐轮训练信号。</figcaption>
-    </figure>
-    <p><span class="tag res">结果</span>从同一四领域 SFT 出发（独立优化器），训练并选定 <strong class="num">Airline、Retail、Telecom、Banking 四位领域专家</strong>；官方 197 题评测下，各领域 pass@1 较 SFT 分别提高 <strong class="num">11.25 / 1.88 / 4.38 / 0.52pp</strong>。</p>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <caption>表 5 ｜ 四位领域专家 vs 共同 SFT 初始化（官方 197 题 × 4 次试验，seed 300，仅列各专家目标域）</caption>
-        <thead><tr><th>目标领域</th><th>SFT pass@1 / pass@4 / pass^4</th><th>专家 pass@1 / pass@4 / pass^4</th><th>Δ (pp)</th></tr></thead>
-        <tbody>
-          <tr><td>Airline</td><td>42.50 / 65.00 / 30.00</td><td><b>53.75 / 75.00 / 35.00</b></td><td class="delta-pos">+11.25 / +10.00 / +5.00</td></tr>
-          <tr><td>Retail</td><td>58.75 / 77.50 / 35.00</td><td><b>60.63 / 87.50 / 30.00</b></td><td class="delta-pos">+1.88 / +10.00 / −5.00</td></tr>
-          <tr><td>Telecom</td><td>47.50 / 82.50 / 12.50</td><td><b>51.88 / 90.00 / 15.00</b></td><td class="delta-pos">+4.38 / +7.50 / +2.50</td></tr>
-          <tr><td>Banking</td><td>4.12 / 8.25 / 1.03</td><td><b>4.64 / 11.34 / 0.00</b></td><td class="delta-pos">+0.52 / +3.09 / −1.03</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="note">演进路径：字段奖励（v1，penalty 尺度受组方差影响）→ 固定零和预算的 turn credit（v2，对照 outcome-only +2.50/+3.50/+4.00pp，CI 含 0，未替代 v1）→ 状态进度（DB-count，当前四领域专家采用）。</div>
-  </div>
-
-  <!-- ========== 3.6 OPD ========== -->
-  <h3><span class="no">3.6</span>多教师 On-Policy 蒸馏</h3>
-  <div class="method">
-    <p><span class="tag prob">问题</span>四位领域专家各有所长，但线上只能部署一个模型；序列级蒸馏让学生模仿教师文本，而学生真正需要的是<b>在自己会走的上下文、自己会犯的错误上</b>获得反馈。</p>
-    <p><span class="tag sol">方法</span>将四位专家部署为冻结的评分服务。学生照常与用户、环境自主交互（on-policy），按任务领域路由到对应专家；专家对学生<b>实际生成的每个 token</b>计算 logprob，与训练侧重算的当前学生 logprob 作差，构成逐 token 的 reverse-KL 优势——教师比学生更认可的输出被强化，不被认可的被抑制。成功与失败轨迹均参与蒸馏（任务奖励仅用于监控）；以 TIS 修正异步采样的策略滞后，并用总预取回压（buffer32）把平均策略滞后从 8.29 次更新压到 1.03。</p>
-    <figure>
-      <svg viewBox="0 0 880 240" role="img" aria-label="多教师蒸馏">
-        <defs>
-          <marker id="arr6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
-          </marker>
-        </defs>
-        <g font-family="inherit">
-          <rect x="20" y="86" width="180" height="70" rx="10" fill="#e6fcf5" stroke="#b2e8d4"/>
-          <text x="110" y="114" font-size="13" font-weight="600" fill="#0b6e4f" text-anchor="middle">学生 Agent（训练中）</text>
-          <text x="110" y="136" font-size="10.5" fill="#64748b" text-anchor="middle">Qwen3-4B · 从 SFT 初始化</text>
-          <rect x="270" y="86" width="190" height="70" rx="10" fill="#fff" stroke="#c7d8f5"/>
-          <text x="365" y="114" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">工具环境 + 冻结 User</text>
-          <text x="365" y="136" font-size="10.5" fill="#64748b" text-anchor="middle">真实交互 · 成败轨迹均参与</text>
-          <line x1="200" y1="112" x2="268" y2="112" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr6)"/>
-          <line x1="268" y1="130" x2="200" y2="130" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr6)"/>
-          <rect x="540" y="20" width="300" height="200" rx="10" fill="#eef4ff" stroke="#c7d8f5"/>
-          <text x="690" y="46" font-size="12.5" font-weight="600" fill="#1e3a6e" text-anchor="middle">冻结领域专家教师（评分服务）</text>
-          <rect x="562" y="62" width="120" height="34" rx="6" fill="#fff" stroke="#c7d8f5"/>
-          <text x="622" y="84" font-size="12" fill="#1e3a6e" text-anchor="middle">Airline 专家</text>
-          <rect x="698" y="62" width="120" height="34" rx="6" fill="#fff" stroke="#c7d8f5"/>
-          <text x="758" y="84" font-size="12" fill="#1e3a6e" text-anchor="middle">Retail 专家</text>
-          <rect x="562" y="106" width="120" height="34" rx="6" fill="#fff" stroke="#c7d8f5"/>
-          <text x="622" y="128" font-size="12" fill="#1e3a6e" text-anchor="middle">Telecom 专家</text>
-          <rect x="698" y="106" width="120" height="34" rx="6" fill="#fff" stroke="#c7d8f5"/>
-          <text x="758" y="128" font-size="12" fill="#1e3a6e" text-anchor="middle">Banking 专家</text>
-          <text x="690" y="168" font-size="11" fill="#64748b" text-anchor="middle">按任务领域路由 · 只评分不生成</text>
-          <text x="690" y="190" font-size="11" fill="#64748b" text-anchor="middle">对学生 token 计算 logprob</text>
-          <line x1="460" y1="100" x2="538" y2="80" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr6)"/>
-          <text x="498" y="72" font-size="10.5" fill="#64748b" text-anchor="middle">学生轨迹 token</text>
-          <path d="M540,160 C 420,220 260,210 200,160" fill="none" stroke="#e8590c" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#arr6)"/>
-          <text x="370" y="222" font-size="11.5" fill="#e8590c" text-anchor="middle">逐 token reverse-KL 优势：A = log q_教师 − log p_学生（×TIS）</text>
-        </g>
-      </svg>
-      <figcaption>图 6 ｜ 多教师 on-policy 蒸馏：学生自主交互，四位专家按领域为学生实际生成的 token 打分。</figcaption>
-    </figure>
-    <p><span class="tag res">结果</span>完成四领域 <strong class="num">160 次更新</strong>的纯 OPD（K=1、batch 16，共 2,560 条轨迹，覆盖 97.7% 任务源），经官方评测选定 Update 80 学生：在四个领域分别保留对应教师 <strong class="num">93.0%、95.9%、92.8%、83.3%</strong> 的任务完成能力，总体保留率 <strong class="num">93.4%</strong>。</p>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <caption>表 6 ｜ 教师能力保留（官方 197 题 × 4 次试验，seed 300；保留率 = 学生目标域 pass@1 ÷ 教师目标域 pass@1）</caption>
-        <thead><tr><th>领域</th><th>教师 pass@1</th><th>学生 pass@1</th><th>保留率</th></tr></thead>
-        <tbody>
-          <tr><td>Airline</td><td>53.75%</td><td>50.00%</td><td>93.0%</td></tr>
-          <tr><td>Retail</td><td>60.63%</td><td>58.13%</td><td>95.9%</td></tr>
-          <tr><td>Telecom</td><td>51.88%</td><td>48.13%</td><td>92.8%</td></tr>
-          <tr><td>Banking</td><td>4.64%</td><td>3.87%</td><td>83.3%</td></tr>
-          <tr><td><b>总体（按任务数合并）</b></td><td><b>30.58%</b></td><td><b>28.55%</b></td><td><b>93.4%</b></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-</section>
-
-<!-- ==================== 4 结果 ==================== -->
-<section id="results">
-<div class="wrap">
-  <h2><span class="no">4</span>实验结果</h2>
-
-  <h3><span class="no">4.1</span>评测协议</h3>
-  <p>全部模型质量结论来自官方评测协议：Airline / Retail / Telecom / Banking 共 <b>197 个任务</b>（20/40/40/97），每题 <b>4 次试验</b>共 788 条轨迹；固定 Qwen3.6-27B 用户模拟器（关闭思考），Agent temperature 0.6、单次输出上限 1,200 tokens、max_steps 200，Banking 使用 BM25 检索。三个指标分别回答不同问题：<b>pass@1</b> 衡量平均单次成功率，<b>pass@4(any)</b> 衡量任务覆盖（四次至少成功一次），<b>pass^4</b> 衡量一致性（四次全部成功）。</p>
-
-  <h3><span class="no">4.2</span>主结果：从 SFT 到领域专家，再到单一学生</h3>
-  <figure>
-    <svg viewBox="0 0 880 320" role="img" aria-label="各领域 pass@1 柱状图">
-      <g font-family="inherit">
-        <!-- plot area: x 70..850, y 30..250 baseline 250, scale 0..70% over 220px -->
-        <!-- gridlines -->
-        <line x1="70" y1="250" x2="850" y2="250" stroke="#cbd5e1" stroke-width="1.2"/>
-        <line x1="70" y1="187" x2="850" y2="187" stroke="#eef2f7" stroke-width="1"/>
-        <line x1="70" y1="124" x2="850" y2="124" stroke="#eef2f7" stroke-width="1"/>
-        <line x1="70" y1="62" x2="850" y2="62" stroke="#eef2f7" stroke-width="1"/>
-        <text x="62" y="254" font-size="10.5" fill="#94a3b8" text-anchor="end">0</text>
-        <text x="62" y="191" font-size="10.5" fill="#94a3b8" text-anchor="end">20</text>
-        <text x="62" y="128" font-size="10.5" fill="#94a3b8" text-anchor="end">40</text>
-        <text x="62" y="66" font-size="10.5" fill="#94a3b8" text-anchor="end">60%</text>
-        <!-- legend -->
-        <rect x="560" y="12" width="12" height="12" fill="#94a3b8" rx="2"/><text x="578" y="22" font-size="11.5" fill="#475569">SFT4505</text>
-        <rect x="648" y="12" width="12" height="12" fill="#2f6fd6" rx="2"/><text x="666" y="22" font-size="11.5" fill="#475569">领域专家</text>
-        <rect x="736" y="12" width="12" height="12" fill="#0ca678" rx="2"/><text x="754" y="22" font-size="11.5" fill="#475569">最终学生</text>
-        <!-- bars: group g at x0 = 95 + g*195; bar w=44, gap 6; h = v/63.1*220 ≈ v*3.157 (0..70 -> 0..221) -->
-        <!-- Airline: 42.50/53.75/50.00 -> h 134.2/169.7/157.9 -->
-        <rect x="95"  y="115.8" width="44" height="134.2" fill="#94a3b8" rx="3"/>
-        <rect x="145" y="80.3"  width="44" height="169.7" fill="#2f6fd6" rx="3"/>
-        <rect x="195" y="92.1"  width="44" height="157.9" fill="#0ca678" rx="3"/>
-        <text x="117" y="109" font-size="11" fill="#475569" text-anchor="middle">42.50</text>
-        <text x="167" y="73"  font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="700">53.75</text>
-        <text x="217" y="85"  font-size="11" fill="#0b6e4f" text-anchor="middle" font-weight="700">50.00</text>
-        <text x="167" y="272" font-size="12.5" fill="#343a40" text-anchor="middle">Airline</text>
-        <!-- Retail: 58.75/60.63/58.13 -> h 185.5/191.4/183.5 -->
-        <rect x="290" y="64.5" width="44" height="185.5" fill="#94a3b8" rx="3"/>
-        <rect x="340" y="58.6" width="44" height="191.4" fill="#2f6fd6" rx="3"/>
-        <rect x="390" y="66.5" width="44" height="183.5" fill="#0ca678" rx="3"/>
-        <text x="312" y="58" font-size="11" fill="#475569" text-anchor="middle">58.75</text>
-        <text x="362" y="52" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="700">60.63</text>
-        <text x="412" y="60" font-size="11" fill="#0b6e4f" text-anchor="middle" font-weight="700">58.13</text>
-        <text x="362" y="272" font-size="12.5" fill="#343a40" text-anchor="middle">Retail</text>
-        <!-- Telecom: 47.50/51.88/48.13 -> h 150.0/163.8/151.9 -->
-        <rect x="485" y="100.0" width="44" height="150.0" fill="#94a3b8" rx="3"/>
-        <rect x="535" y="86.2"  width="44" height="163.8" fill="#2f6fd6" rx="3"/>
-        <rect x="585" y="98.1"  width="44" height="151.9" fill="#0ca678" rx="3"/>
-        <text x="507" y="93" font-size="11" fill="#475569" text-anchor="middle">47.50</text>
-        <text x="557" y="79" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="700">51.88</text>
-        <text x="607" y="91" font-size="11" fill="#0b6e4f" text-anchor="middle" font-weight="700">48.13</text>
-        <text x="557" y="272" font-size="12.5" fill="#343a40" text-anchor="middle">Telecom</text>
-        <!-- Banking: 4.12/4.64/3.87 -> h 13.0/14.6/12.2 -->
-        <rect x="680" y="237.0" width="44" height="13.0" fill="#94a3b8" rx="3"/>
-        <rect x="730" y="235.4" width="44" height="14.6" fill="#2f6fd6" rx="3"/>
-        <rect x="780" y="237.8" width="44" height="12.2" fill="#0ca678" rx="3"/>
-        <text x="702" y="230" font-size="11" fill="#475569" text-anchor="middle">4.12</text>
-        <text x="752" y="228" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="700">4.64</text>
-        <text x="802" y="230" font-size="11" fill="#0b6e4f" text-anchor="middle" font-weight="700">3.87</text>
-        <text x="752" y="272" font-size="12.5" fill="#343a40" text-anchor="middle">Banking</text>
-        <text x="440" y="306" font-size="11.5" fill="#94a3b8" text-anchor="middle">pass@1（%，官方 197 题 × 4 次试验，seed 300）——专家列为各领域对应专家在其目标域的成绩</text>
-      </g>
-    </svg>
-    <figcaption>图 7 ｜ 各领域 pass@1：SFT → 领域专家 → 最终单一学生。学生在三个领域保留教师九成以上能力，Banking 全域仍弱。</figcaption>
-  </figure>
-
-  <div class="tbl-wrap">
-    <table class="tbl">
-      <caption>表 7 ｜ 主结果全表（官方 197 题 × 4 次试验，seed 300；同一四领域学生，非各域成绩拼接）</caption>
-      <thead>
-        <tr><th>领域</th><th>SFT4505<br>pass@1 / @4 / ^4</th><th>领域专家<br>pass@1 / @4 / ^4</th><th>最终学生（Update 80）<br>pass@1 / @4 / ^4</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Airline</td><td>42.50 / 65.00 / 30.00</td><td>53.75 / 75.00 / 35.00</td><td><b>50.00 / 80.00 / 30.00</b></td></tr>
-        <tr><td>Retail</td><td>58.75 / 77.50 / 35.00</td><td>60.63 / 87.50 / 30.00</td><td><b>58.13 / 85.00 / 37.50</b></td></tr>
-        <tr><td>Telecom</td><td>47.50 / 82.50 / 12.50</td><td>51.88 / 90.00 / 15.00</td><td><b>48.13 / 87.50 / 15.00</b></td></tr>
-        <tr><td>Banking</td><td>4.12 / 8.25 / 1.03</td><td>4.64 / 11.34 / 0.00</td><td><b>3.87 / 7.22 / 2.06</b></td></tr>
-        <tr><td><b>总体（788 条轨迹）</b></td><td>27.92 / 43.15 / 13.20</td><td>30.58 / 49.24 / 12.69</td><td><b>28.55 / 46.70 / 14.72</b></td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="note">“教师总体”按每个任务的领域取对应专家结果合并计数，描述一个按域选专家的参照系统；学生成绩来自同一个 4B 模型。学生相对 SFT 总体 +0.63 / +3.55 / +1.52pp。</div>
-
-  <h3><span class="no">4.3</span>效率结果汇总</h3>
-  <div class="tbl-wrap">
-    <table class="tbl">
-      <caption>表 8 ｜ 两项系统优化的收益（均为相同预算下的匹配对照）</caption>
-      <thead><tr><th class="l">环节</th><th>优化前</th><th>优化后</th><th>收益</th></tr></thead>
-      <tbody>
-        <tr><td class="l">三领域官方评测（100 题 × 4 次）</td><td>174.26 min · 11.62 GPU-h</td><td>35.71 min · 4.76 GPU-h</td><td><b>4.88× · −59.0%</b></td></tr>
-        <tr><td class="l">RL 训练前 20 次更新（Airline）</td><td>370.22 min · GPU 利用率 21.54%</td><td>80.46 min · 76.22%</td><td><b>4.60× · +54.7pp</b></td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h3><span class="no">4.4</span>消融与负结果</h3>
-  <ul class="plain">
-    <li><b>学习率行为对照：</b>2e-6 / 3e-6 / 5e-6 三组均完成 100 次更新且无 NaN，但 5e-6 出现明显行为退化（重复工具调用 0.14 → 2.56 次/轨迹，pass@1 18.50%）——“数值不炸”不等于“行为稳定”。</li>
-    <li><b>数据复筛消融：</b>27B 模型逐目标双审删除 675 条可疑样本后，匹配更新数的重训对照反而退步（pass@1 −3.63pp），故保留 30,376 条配方。</li>
-    <li><b>严格同步/异步对照：</b>20 次更新提速 1.060×，100 次更新为 0.977×——本项目的 4.60× 收益来自供给与 CPU 瓶颈治理，而非“异步”本身。</li>
-    <li><b>turn credit v2 受控对照：</b>对 outcome-only 为 +2.50 / +3.50 / +4.00pp（95% 配对 CI 均含 0），越界工具轨迹 14.92% → 2.95%；因未按预设规则胜过 v1，当次保留 v1，后续演进为状态进度配方。</li>
-    <li><b>Banking 全域仍弱：</b>官方 97 题 pass@1 约 4%，合成训练集上的高成功率（82.38%）不能外推到官方任务。</li>
-  </ul>
-</div>
-</section>
-
-<!-- ==================== 5 讨论 ==================== -->
-<section id="discussion">
-<div class="wrap">
-  <h2><span class="no">5</span>讨论与局限</h2>
-  <ul class="plain">
-    <li><b>评测种子与选型不确定性。</b>四领域专家与 Update 80 学生的选型基于单一评测 seed（300）上的多 checkpoint 比较，尚无独立 seed 复验选型优势；简历级结论均标注为点估计。</li>
-    <li><b>一致性与覆盖率的权衡。</b>多项实验中 pass@4(any) 的提升伴随 pass^4 回落（如 Retail 专家 +10.00 / −5.00pp），“能做成更多任务”与“每次都做成”需要分别优化。</li>
-    <li><b>Banking 占比与难度。</b>Banking 占官方 197 题的 49.2%，其低成功率大幅拖累总体数字；该领域的进展更接近“从零搭建数据管线”，能力提升仍有限。</li>
-    <li><b>数字口径边界。</b>4.88× 来自历史三领域评测协议；+28.00pp 是“治理 vs 未治理初始化”的对照收益而非 RL 算法本身；93.4% 是教师绝对成绩的保留率（SFT 初始化本身已达教师的 91.3%）。</li>
-  </ul>
-</div>
-</section>
-
-<!-- ==================== 6 结论 ==================== -->
-<section id="conclusion">
-<div class="wrap">
-  <h2><span class="no">6</span>结论</h2>
-  <p>本项目走通了一条面向长程客服 Agent 的完整后训练链路：先把评测变快（4.88×），再把数据变干净（根治 RL 行为坍塌）、为空白领域造出任务（647 场景全回放通过），随后让 RL 训练本身变快（4.60×）、让奖励信号变细（逐轮状态进度），最后用多教师蒸馏把四位领域专家汇集回一个可部署的 4B 学生（保留 93.4% 能力）。每一步都以固定官方协议做对照，并如实记录了未胜出的消融与口径边界。后续方向：更强的信用分配、Banking 领域能力提升，以及跨训练 seed 的稳定性验证。</p>
-</div>
-</section>
-
-<footer>
-  <div class="wrap">
-    <p><b>Service Agent</b> · 付仕豪 · 中山大学 计算机学院 · fushihao2003@163.com</p>
-    <p>基于 <a href="https://github.com/THUDM/slime">slime</a>（THUDM）、<a href="https://github.com/sierra-research/tau2-bench">tau2-bench</a>（Sierra）与 <a href="https://github.com/QwenLM/Qwen3">Qwen3</a> 构建 · 训练与评测日期：2026.07—2026.09</p>
-    <p class="muted" style="margin-top:8px;">页面数字均来自官方评测或匹配对照实验的原始记录；各表附口径说明。</p>
-  </div>
-</footer>
-
+<footer class="footer"><p>Service Agent · 付仕豪<br>方法与结果按 2026-09-29 最终项目主线整理。</p><p><a href="sources.html">数据与实验依据</a> · <a href="#top">返回顶部 ↑</a><br>实测图表提供 SVG / PNG；示意图在图注中单独说明。</p></footer>
 </body>
 </html>

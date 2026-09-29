@@ -262,6 +262,8 @@ if [[ "${SKIP_PREFLIGHT:-0}" == "0" ]]; then
     # pure-OPD hook disabled for this preflight; the OPD-specific tests run
     # separately in the OPD launcher.
     TAU2_OPD_PURE=0 python3 "${PROJECT_ROOT}/tests/test_tau2_continuous.py"
+    python3 -m pytest "${PROJECT_ROOT}/tests/test_tau2_opd_training.py" \
+      -k test_policy_loss_preserves_token_credit_with_optional_opd_metrics -q
   fi
 fi
 
@@ -662,7 +664,8 @@ import os
 
 runtime_env = json.loads(os.environ["RUNTIME_ENV_JSON"])
 for key in ("TAU2_RAW_TOKENS", "TAU2_RL_RAISE_ERRORS", "TAU2_DATA_DIR",
-            "TAU2_AGENT_CONCURRENCY", "TAU2_STEP_CONCURRENCY", "TAU2_AGENT_TIMEOUT"):
+            "TAU2_AGENT_CONCURRENCY", "TAU2_STEP_CONCURRENCY", "TAU2_AGENT_TIMEOUT",
+            "TAU2_BANKING_AGENT_TIMEOUT"):
     if key in os.environ:
         runtime_env["env_vars"][key] = os.environ[key]
 runtime_env["env_vars"]["TAU2_USER_EXTRA_BODY_JSON"] = os.environ[

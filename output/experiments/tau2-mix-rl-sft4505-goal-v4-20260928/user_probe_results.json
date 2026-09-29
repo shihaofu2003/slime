@@ -1,0 +1,54 @@
+[
+  {
+    "task": "retail_265",
+    "arm": "v3",
+    "agent_message_index": 24,
+    "agent_message": "I can help you with returns for your other orders. You have two delivered orders:\n\n**Order #W8367851:**\n1. Bluetooth Speaker (blue, 10 hours battery, water resistant) - $289.69\n2. Indoor Security Camera (2K, 130 degrees, Ethernet) - $291.31\n- **Total:** $581.00\n\n**Order #W5712077:**\n1. E-Reader (6-inch, Wi-Fi, 8GB) - $267.07\n2. E-Reader (8-inch, Wi-Fi, 32GB) - $243.40\n- **Total:** $510.47\n\nWhich order(s) would you like to return items from, and which items would you like to return? Also, please let me know where you'd like the refund to go. You can choose:\n1. **Original payment method** (Visa Credit Card ending in 8923 for the Bluetooth Speaker/Security Camera order, or Gift Card for the E-Reader order)\n2. **Gift Card** (current balance: $146.25)",
+    "user_response": "I want to return all items from both orders. For the refund, please put it all on my gift card."
+  },
+  {
+    "task": "retail_265",
+    "arm": "v4",
+    "agent_message_index": 24,
+    "agent_message": "I can help you with returns for your other orders. You have two delivered orders:\n\n**Order #W8367851:**\n1. Bluetooth Speaker (blue, 10 hours battery, water resistant) - $289.69\n2. Indoor Security Camera (2K, 130 degrees, Ethernet) - $291.31\n- **Total:** $581.00\n\n**Order #W5712077:**\n1. E-Reader (6-inch, Wi-Fi, 8GB) - $267.07\n2. E-Reader (8-inch, Wi-Fi, 32GB) - $243.40\n- **Total:** $510.47\n\nWhich order(s) would you like to return items from, and which items would you like to return? Also, please let me know where you'd like the refund to go. You can choose:\n1. **Original payment method** (Visa Credit Card ending in 8923 for the Bluetooth Speaker/Security Camera order, or Gift Card for the E-Reader order)\n2. **Gift Card** (current balance: $146.25)",
+    "user_response": "I want to return both items from order #W8367851: the blue Bluetooth Speaker and the Indoor Security Camera. I'd like the refund for these to go to my Visa credit card ending in 8923.",
+    "followups": [
+      {
+        "agent": "Order #W8367851 has been returned and will be refunded to your Visa ending in 8923. Is there anything else you need?",
+        "user": "Yes, I also need to return both E-Readers from order #W5712077. I'd like the refund for those to go to my gift card ending in 2736."
+      },
+      {
+        "agent": "Order #W5712077 has also been returned, with the refund to your gift card ending in 2736. All the keyboard and return changes are complete. Anything else?",
+        "user": "No, that's all. Thank you. ###STOP###"
+      }
+    ]
+  },
+  {
+    "task": "retail_541",
+    "arm": "v3",
+    "agent_message_index": 0,
+    "agent_message": "Hi! How can I help you today?",
+    "user_response": "Hi there! I have two pending orders that I need to make some changes to. \n\nFor the order with the smartwatch, I'd like to change the dial color to black. \n\nFor the order with the tablet, I need to change the shipping address to my NYC address that's saved in my profile, and I also want to change the tablet to a different configuration with a different screen size and storage."
+  },
+  {
+    "task": "retail_541",
+    "arm": "v4",
+    "agent_message_index": 0,
+    "agent_message": "Hi! How can I help you today?",
+    "user_response": "Hi, I'm calling to make some changes to my recent order, #W4954663. I need to update the shipping address and also change one of the items in the order."
+  },
+  {
+    "task": "retail_347",
+    "arm": "v3",
+    "agent_message_index": 26,
+    "agent_message": "I apologize for the issues. Let me clarify and correct:\n\n---\n\n**Order #W6788631 (Camera Order)** - Modification Failed\n\nI attempted to change:\n- Camera: 30MP, 3x zoom, SD card → 30MP, 3x zoom, **CF card** (+$47.36)\n\nHowever, I'm seeing an error because the original item ID might not match what I'm referencing. Let me double-check the available options for the Digital Camera.\n\nLooking at the available variants, I notice that for 30MP with 3x zoom, the only CF card option available is the **5x zoom** version, not 3x:\n\n| Resolution | Zoom | Storage | Price | Available |\n|-------------|------|----------|-------|-----------|\n| 30MP | 3x | CF Card | $2,922.97 | ✓ Yes |\n| 30MP | 5x | CF Card | $2,929.62 | ✓ Yes |\n| 30MP | 10x | CF Card | $3,070.64 | ✗ No |\n\nWould you like to:\n- Change to **30MP, 5x zoom, CF card** ($2,929.62, +$52.01)?\n- Keep the **30MP, 3x zoom, SD card** as-is?\n\n---\n\n**Order #W4593656 (Tablet Order)** - Address Change **= COMPLETE ✓**\n\nThe smartphone/tablet order has been successfully updated to your New York address.\n\n---\n\nPlease let me know how you'd like to proceed with the camera modification, and I'll use your Mastercard ending in 7621 to cover any price difference.",
+    "user_response": "Let's go with the 30MP, 5x zoom, CF card variant for the camera. Please process that change and the tablet modification as well."
+  },
+  {
+    "task": "retail_347",
+    "arm": "v4",
+    "agent_message_index": 26,
+    "agent_message": "I apologize for the issues. Let me clarify and correct:\n\n---\n\n**Order #W6788631 (Camera Order)** - Modification Failed\n\nI attempted to change:\n- Camera: 30MP, 3x zoom, SD card → 30MP, 3x zoom, **CF card** (+$47.36)\n\nHowever, I'm seeing an error because the original item ID might not match what I'm referencing. Let me double-check the available options for the Digital Camera.\n\nLooking at the available variants, I notice that for 30MP with 3x zoom, the only CF card option available is the **5x zoom** version, not 3x:\n\n| Resolution | Zoom | Storage | Price | Available |\n|-------------|------|----------|-------|-----------|\n| 30MP | 3x | CF Card | $2,922.97 | ✓ Yes |\n| 30MP | 5x | CF Card | $2,929.62 | ✓ Yes |\n| 30MP | 10x | CF Card | $3,070.64 | ✗ No |\n\nWould you like to:\n- Change to **30MP, 5x zoom, CF card** ($2,929.62, +$52.01)?\n- Keep the **30MP, 3x zoom, SD card** as-is?\n\n---\n\n**Order #W4593656 (Tablet Order)** - Address Change **= COMPLETE ✓**\n\nThe smartphone/tablet order has been successfully updated to your New York address.\n\n---\n\nPlease let me know how you'd like to proceed with the camera modification, and I'll use your Mastercard ending in 7621 to cover any price difference.",
+    "user_response": "I specifically need the 30MP, 3x zoom, CF card variant. Please check availability for that exact configuration. I do not want the 5x zoom version."
+  }
+]

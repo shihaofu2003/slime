@@ -1,0 +1,1091 @@
+{
+  "task": {
+    "id": "telecom_118",
+    "description": {
+      "purpose": "Test resolution path: Mobile Data/Slow Internet Issues.",
+      "task_type": "mobile_data_issue",
+      "difficulty": "medium"
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "telecom",
+        "reason_for_call": "You mobile data is not working properly. It either stops working or is very slow. You want to fix it and absolutely want to get excellent internet speed on your phone. You are not willing to accept any other internet speed (poor, fair or good). You do not have access to wifi.",
+        "known_info": "You are John Smith with phone number 555-123-2002. You are currently at home in the United States.",
+        "unknown_info": null,
+        "task_instructions": "If the agent suggests actions that don't immediately fix the issue, follow their guidance but express mild frustration after the first unsuccessful attempt. You will consider the issue resolved only when speed test returns excellent internet speed and nothing else. If it returns poor, fair or good, you will not consider the issue resolved. You are willing to refuel 2.0 GB of data if necessary, but you do not want to change your mobile data plan. If the tool call does not return updated status information, you might need to perform another tool call to get the updated status. \nWhenever the agent asks you about your device, always ground your responses on the results of tool calls. \nFor example: If the agent asks what the status bar shows, always ground your response on the results of the `get_status_bar` tool call. If the agent asks if you are able to send an MMS message, always ground your response on the results of the `can_send_mms` tool call.\nNever make up the results of tool calls, always ground your responses on the results of tool calls.\nIf you are unsure about whether an action is necessary, always ask the agent for clarification.\n"
+      }
+    },
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "mdi_M_0036_act_0",
+          "name": "set_network_mode_preference",
+          "arguments": {
+            "mode": "4g_5g_preferred"
+          },
+          "requestor": "user",
+          "info": null,
+          "compare_args": null
+        },
+        {
+          "action_id": "mdi_M_0036_act_1",
+          "name": "disconnect_vpn",
+          "arguments": {},
+          "requestor": "user",
+          "info": null,
+          "compare_args": null
+        },
+        {
+          "action_id": "mdi_M_0036_act_2",
+          "name": "refuel_data",
+          "arguments": {
+            "customer_id": "C1001",
+            "line_id": "L1002",
+            "gb_amount": 2.0
+          },
+          "requestor": "assistant",
+          "info": null,
+          "compare_args": null
+        }
+      ],
+      "env_assertions": [
+        {
+          "env_type": "user",
+          "func_name": "assert_mobile_data_status",
+          "arguments": {
+            "expected_status": true
+          },
+          "assert_value": true,
+          "message": null
+        },
+        {
+          "env_type": "user",
+          "func_name": "assert_internet_speed",
+          "arguments": {
+            "expected_speed": 200,
+            "expected_desc": "excellent"
+          },
+          "assert_value": true,
+          "message": null
+        },
+        {
+          "env_type": "assistant",
+          "func_name": "assert_data_refueling_amount",
+          "arguments": {
+            "customer_id": "C1001",
+            "line_id": "L1002",
+            "expected_amount": 2.0
+          },
+          "assert_value": true,
+          "message": null
+        }
+      ],
+      "communicate_info": null
+    },
+    "initial_state": {
+      "initialization_data": null,
+      "initialization_actions": [
+        {
+          "env_type": "user",
+          "func_name": "set_user_info",
+          "arguments": {
+            "name": "John Smith",
+            "phone_number": "555-123-2002"
+          }
+        },
+        {
+          "env_type": "user",
+          "func_name": "set_network_mode_preference",
+          "arguments": {
+            "mode": "2g_only"
+          }
+        },
+        {
+          "env_type": "user",
+          "func_name": "break_vpn",
+          "arguments": {}
+        },
+        {
+          "env_type": "assistant",
+          "func_name": "set_data_usage",
+          "arguments": {
+            "customer_id": "C1001",
+            "line_id": "L1002",
+            "data_used_gb": 15.1
+          }
+        }
+      ],
+      "message_history": null
+    },
+    "ticket": "The user is experiencing issues with their mobile data. They are unable to use their phone to browse the internet, and the status bar shows 'No Service'. Customer name: John Smith, phone number: 555-123-2002, current location: at home in the United States. They will consider the issue resolved when speed test returns excellent internet speed. They will not change their mobile data plan but they will refuel 2.0 GB of data if necessary."
+  },
+  "domain": "telecom",
+  "db_path": "/mnt/afs/users/fush/projects/ServiceAgent/datasets/AReaL-tau2-data/tau2_rl_database/tau2_telecom_db.toml",
+  "simulation": {
+    "id": "95eccc64-483a-453d-b0d3-4efc79d08216",
+    "task_id": "telecom_118",
+    "timestamp": "2026-09-27T03:37:02.225922",
+    "start_time": "2026-09-27T03:32:54.814468",
+    "end_time": "2026-09-27T03:37:02.225886",
+    "duration": 240.01495385542512,
+    "termination_reason": "user_stop",
+    "agent_cost": null,
+    "user_cost": null,
+    "reward_info": {
+      "reward": 0.0,
+      "db_check": {
+        "db_match": false,
+        "db_reward": 0.0
+      },
+      "env_assertions": [
+        {
+          "env_assertion": {
+            "env_type": "user",
+            "func_name": "assert_mobile_data_status",
+            "arguments": {
+              "expected_status": true
+            },
+            "assert_value": true,
+            "message": null
+          },
+          "met": true,
+          "reward": 1.0
+        },
+        {
+          "env_assertion": {
+            "env_type": "user",
+            "func_name": "assert_internet_speed",
+            "arguments": {
+              "expected_speed": 200,
+              "expected_desc": "excellent"
+            },
+            "assert_value": true,
+            "message": null
+          },
+          "met": true,
+          "reward": 1.0
+        },
+        {
+          "env_assertion": {
+            "env_type": "assistant",
+            "func_name": "assert_data_refueling_amount",
+            "arguments": {
+              "customer_id": "C1001",
+              "line_id": "L1002",
+              "expected_amount": 2.0
+            },
+            "assert_value": true,
+            "message": null
+          },
+          "met": true,
+          "reward": 1.0
+        }
+      ],
+      "action_checks": [
+        {
+          "action": {
+            "action_id": "mdi_M_0036_act_0",
+            "requestor": "user",
+            "name": "set_network_mode_preference",
+            "arguments": {
+              "mode": "4g_5g_preferred"
+            },
+            "info": null,
+            "compare_args": null
+          },
+          "action_match": true,
+          "action_reward": 1.0,
+          "tool_type": "write"
+        },
+        {
+          "action": {
+            "action_id": "mdi_M_0036_act_1",
+            "requestor": "user",
+            "name": "disconnect_vpn",
+            "arguments": {},
+            "info": null,
+            "compare_args": null
+          },
+          "action_match": true,
+          "action_reward": 1.0,
+          "tool_type": "write"
+        },
+        {
+          "action": {
+            "action_id": "mdi_M_0036_act_2",
+            "requestor": "assistant",
+            "name": "refuel_data",
+            "arguments": {
+              "customer_id": "C1001",
+              "line_id": "L1002",
+              "gb_amount": 2.0
+            },
+            "info": null,
+            "compare_args": null
+          },
+          "action_match": true,
+          "action_reward": 1.0,
+          "tool_type": "write"
+        }
+      ],
+      "nl_assertions": null,
+      "communicate_checks": null,
+      "reward_basis": [
+        "DB",
+        "COMMUNICATE"
+      ],
+      "reward_breakdown": {
+        "DB": 0.0,
+        "COMMUNICATE": 1.0
+      },
+      "info": {
+        "domain": "telecom",
+        "env": null,
+        "action": null,
+        "communicate": {
+          "note": "No communicate_info to evaluate"
+        }
+      }
+    },
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help you today?",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 0,
+        "timestamp": "2026-09-27T03:33:41.353993",
+        "cost": 0.0,
+        "usage": null,
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "user",
+        "content": "Hi, I'm having issues with my mobile data. It's either not working at all or it's really slow. I need to get excellent internet speed on my phone - that's the only thing I'll accept as a resolution. I don't have Wi-Fi access, so mobile data is my only option right now.\n\nCan you help me fix this?",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 1,
+        "timestamp": "2026-09-27T03:34:04.572831",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 74,
+          "prompt_tokens": 4157
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "assistant",
+        "content": "I'm sorry to hear you're having trouble with your mobile data! I'd be happy to help you troubleshoot this issue.\n\nBefore we get started, I'll need to look up your account. Could you please provide me with one of the following:\n- Your phone number, or\n- Your customer ID, or\n- Your full name and date of birth\n\nOnce I can verify your account, we can dive into diagnosing and resolving your mobile data problem.",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 2,
+        "timestamp": "2026-09-27T03:34:05.432993",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 0.6814226768910885,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "user",
+        "content": "My name is John Smith and my phone number is 555-123-2002.",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 3,
+        "timestamp": "2026-09-27T03:34:10.024323",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 25,
+          "prompt_tokens": 4336
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_ac4dfbeb151b",
+            "name": "get_customer_by_phone",
+            "arguments": {
+              "phone_number": "555-123-2002"
+            },
+            "requestor": "assistant"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 4,
+        "timestamp": "2026-09-27T03:34:18.689221",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 8.632398247718811,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_ac4dfbeb151b",
+        "role": "tool",
+        "content": "{\"customer_id\": \"C1001\", \"full_name\": \"John Smith\", \"date_of_birth\": \"1985-06-15\", \"email\": \"john.smith@example.com\", \"phone_number\": \"555-123-2002\", \"address\": {\"street\": \"123 Main St\", \"city\": \"Anytown\", \"state\": \"CA\", \"zip_code\": \"90210\"}, \"account_status\": \"Active\", \"payment_methods\": [{\"method_type\": \"Credit Card\", \"account_number_last_4\": \"1235\", \"expiration_date\": \"12/2026\"}], \"line_ids\": [\"L1001\", \"L1002\", \"L1003\"], \"bill_ids\": [\"B1001\", \"B1002\", \"B1003\"], \"created_at\": \"2025-01-15 10:30:00\", \"last_extension_date\": null, \"goodwill_credit_used_this_year\": 25.0}",
+        "requestor": "assistant",
+        "error": false,
+        "turn_idx": 5,
+        "timestamp": "2026-09-27T03:34:18.689711"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_e02708c3bf7e",
+            "name": "get_details_by_id",
+            "arguments": {
+              "id": "L1001"
+            },
+            "requestor": "assistant"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 6,
+        "timestamp": "2026-09-27T03:34:20.366433",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 1.606476029381156,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_e02708c3bf7e",
+        "role": "tool",
+        "content": "{\"line_id\": \"L1001\", \"phone_number\": \"555-123-2001\", \"status\": \"Active\", \"plan_id\": \"P1001\", \"device_id\": \"D1001\", \"data_used_gb\": 3.2, \"data_refueling_gb\": 0.0, \"roaming_enabled\": false, \"contract_end_date\": \"2026-12-31\", \"last_plan_change_date\": \"2025-01-10\", \"last_sim_replacement_date\": null, \"suspension_start_date\": null}",
+        "requestor": "assistant",
+        "error": false,
+        "turn_idx": 7,
+        "timestamp": "2026-09-27T03:34:20.366674"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_f61f055c1612",
+            "name": "get_details_by_id",
+            "arguments": {
+              "id": "L1002"
+            },
+            "requestor": "assistant"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 8,
+        "timestamp": "2026-09-27T03:34:32.531262",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 11.952189184725285,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_f61f055c1612",
+        "role": "tool",
+        "content": "{\"line_id\": \"L1002\", \"phone_number\": \"555-123-2002\", \"status\": \"Active\", \"plan_id\": \"P1002\", \"device_id\": \"D1002\", \"data_used_gb\": 15.1, \"data_refueling_gb\": 0.0, \"roaming_enabled\": true, \"contract_end_date\": \"2026-12-31\", \"last_plan_change_date\": \"2024-12-15\", \"last_sim_replacement_date\": \"2025-01-20\", \"suspension_start_date\": null}",
+        "requestor": "assistant",
+        "error": false,
+        "turn_idx": 9,
+        "timestamp": "2026-09-27T03:34:34.946950"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_dd0253d9b49d",
+            "name": "get_details_by_id",
+            "arguments": {
+              "id": "L1003"
+            },
+            "requestor": "assistant"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 10,
+        "timestamp": "2026-09-27T03:34:35.430040",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 0.16384615562856197,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_dd0253d9b49d",
+        "role": "tool",
+        "content": "{\"line_id\": \"L1003\", \"phone_number\": \"555-123-2003\", \"status\": \"Suspended\", \"plan_id\": \"P1001\", \"device_id\": \"D1003\", \"data_used_gb\": 0.0, \"data_refueling_gb\": 0.0, \"roaming_enabled\": false, \"contract_end_date\": \"2026-06-30\", \"last_plan_change_date\": \"2024-10-05\", \"last_sim_replacement_date\": null, \"suspension_start_date\": \"2025-02-01\"}",
+        "requestor": "assistant",
+        "error": false,
+        "turn_idx": 11,
+        "timestamp": "2026-09-27T03:34:35.430348"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_29a3fb8f923c",
+            "name": "get_details_by_id",
+            "arguments": {
+              "id": "P1002"
+            },
+            "requestor": "assistant"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 12,
+        "timestamp": "2026-09-27T03:34:35.594019",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 0.14879610016942024,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_29a3fb8f923c",
+        "role": "tool",
+        "content": "{\"plan_id\": \"P1002\", \"name\": \"Premium Plan\", \"data_limit_gb\": 15.0, \"price_per_month\": 65.0, \"data_refueling_price_per_gb\": 2.0}",
+        "requestor": "assistant",
+        "error": false,
+        "turn_idx": 13,
+        "timestamp": "2026-09-27T03:34:35.594304"
+      },
+      {
+        "role": "assistant",
+        "content": "I've identified the issue with your mobile data.\n\n**The Problem:** Your plan (Premium Plan) includes **15 GB** of data per month, but you've currently used **15.1 GB**. When your data usage exceeds your plan's limit, data connectivity is lost or severely limited. This explains why you're having no data or very slow speeds.\n\n**Your Options:**\n\n1. **Refuel Data** – You can add more data to your line at **$2.00 per GB** (up to 2 GB maximum). Even 1 GB would restore your data connectivity immediately.\n\n2. **Change Your Plan** – I can help you switch to a plan with a higher data limit if you find yourself regularly exceeding 15 GB.\n\nSince you've stated that excellent internet speed is your only acceptable resolution, the quickest fix would be to refuel some data to get you back online right away.\n\nWould you like me to:\n- Add some data (up to 2 GB) for $2.00 per GB? Let me know how many GB you'd like.\n- Or explore different plan options?\n\nAlso, is there anything else on your device that might be affecting your speeds (such as Data Saver mode being enabled)?",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 14,
+        "timestamp": "2026-09-27T03:34:37.150250",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 1.5114546660333872,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "user",
+        "content": "I'd like to refuel 2.0 GB of data. I don't want to change my mobile data plan.\n\nBefore we proceed, let me check if Data Saver mode is enabled on my device.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_49ea7a7903c347de885a6519",
+            "name": "check_data_restriction_status",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 15,
+        "timestamp": "2026-09-27T03:34:47.185788",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 63,
+          "prompt_tokens": 4634
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_49ea7a7903c347de885a6519",
+        "role": "tool",
+        "content": "Data Saver mode is OFF.",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 16,
+        "timestamp": "2026-09-27T03:34:47.185977"
+      },
+      {
+        "role": "user",
+        "content": "Data Saver mode is OFF on my device.\n\nI'd like to refuel 2.0 GB of data at $2.00 per GB. Can you proceed with adding that to my account?",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 17,
+        "timestamp": "2026-09-27T03:35:02.410539",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 44,
+          "prompt_tokens": 4721
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_d5d204d52345",
+            "name": "refuel_data",
+            "arguments": {
+              "line_id": "L1002",
+              "gb_amount": 2,
+              "customer_id": "C1001"
+            },
+            "requestor": "assistant"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 18,
+        "timestamp": "2026-09-27T03:35:02.669908",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 0.24107175692915916,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_d5d204d52345",
+        "role": "tool",
+        "content": "{\"message\": \"Successfully added 2 GB of data for line L1002 for $4.00\", \"new_data_refueling_gb\": \"2.0\", \"charge\": \"4.0\"}",
+        "requestor": "assistant",
+        "error": false,
+        "turn_idx": 19,
+        "timestamp": "2026-09-27T03:35:02.670182"
+      },
+      {
+        "role": "assistant",
+        "content": "I've successfully added **2 GB of data** to your line (555-123-2002). The **$4.00 charge** will appear on your next bill.\n\nYou should now have mobile data restored. If it doesn't work immediately, try these quick steps on your device:\n1. Toggle mobile data off and then back on (`toggle_data` in your settings), OR\n2. Turn Airplane Mode ON and then OFF again.\n\nIf mobile data still isn't working after trying those steps, please let me know and we can do some additional troubleshooting together.\n\nIs there anything else I can help you with?",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 20,
+        "timestamp": "2026-09-27T03:35:03.653952",
+        "cost": null,
+        "usage": null,
+        "generation_time_seconds": 0.9639234561473131,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "role": "user",
+        "content": "Let me toggle mobile data off and then back on to restore the connection.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_35f47c36e7d94728817f33df",
+            "name": "toggle_data",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 21,
+        "timestamp": "2026-09-27T03:35:09.202867",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 31,
+          "prompt_tokens": 4907
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_35f47c36e7d94728817f33df",
+        "role": "tool",
+        "content": "Mobile Data is now OFF.\nStatus Bar: 📶¹ Poor | 2G | 📵 Data Disabled | 🔒 VPN Connected | 🔋 80%",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 22,
+        "timestamp": "2026-09-27T03:35:09.203275"
+      },
+      {
+        "role": "user",
+        "content": "Mobile data is now OFF. Let me turn it back on.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_9a67dc1ce6134601a21900c2",
+            "name": "toggle_data",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 23,
+        "timestamp": "2026-09-27T03:35:18.819323",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 29,
+          "prompt_tokens": 4992
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_9a67dc1ce6134601a21900c2",
+        "role": "tool",
+        "content": "Mobile Data is now ON.\nStatus Bar: 📶¹ Poor | 2G | 📱 Data Enabled | 🔒 VPN Connected | 🔋 80%",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 24,
+        "timestamp": "2026-09-27T03:35:18.819594"
+      },
+      {
+        "role": "user",
+        "content": "Mobile data is now ON. I can see from the status bar that I'm on a 2G network with poor signal, and there's a VPN connected. Let me run a speed test to check the current internet speed.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_d3bc603863984d829016aaa0",
+            "name": "run_speed_test",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 25,
+        "timestamp": "2026-09-27T03:35:27.831414",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 63,
+          "prompt_tokens": 5075
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_d3bc603863984d829016aaa0",
+        "role": "tool",
+        "content": "Speed Test Result: 0.01 Mbps (Very Poor). Connection is very slow. Basic web browsing might be difficult.",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 26,
+        "timestamp": "2026-09-27T03:35:27.831729"
+      },
+      {
+        "role": "user",
+        "content": "The speed test shows 0.01 Mbps, which is very poor. This is not excellent speed at all. I need to resolve this issue.\n\nI notice from the status bar that I'm on a 2G network and there's a VPN connected. Let me first disconnect the VPN to see if that helps improve the speed.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_af43067e4a384179a8f86af4",
+            "name": "disconnect_vpn",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 27,
+        "timestamp": "2026-09-27T03:35:44.281573",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 86,
+          "prompt_tokens": 5181
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_af43067e4a384179a8f86af4",
+        "role": "tool",
+        "content": "VPN disconnected successfully.\nStatus Bar: 📶¹ Poor | 2G | 📱 Data Enabled | 🔋 80%",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 28,
+        "timestamp": "2026-09-27T03:35:44.281810"
+      },
+      {
+        "role": "user",
+        "content": "VPN is now disconnected. I'm still on a 2G network with poor signal. Let me run another speed test to see if disconnecting the VPN helped.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_3b96bfb22bfc4e7b81076bbf",
+            "name": "run_speed_test",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 29,
+        "timestamp": "2026-09-27T03:35:50.878671",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 50,
+          "prompt_tokens": 5314
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_3b96bfb22bfc4e7b81076bbf",
+        "role": "tool",
+        "content": "Speed Test Result: 0.05 Mbps (Very Poor). Connection is very slow. Basic web browsing might be difficult.",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 30,
+        "timestamp": "2026-09-27T03:35:50.878944"
+      },
+      {
+        "role": "user",
+        "content": "The speed is still very poor at 0.05 Mbps. I'm on a 2G network, which is likely the issue. Let me check what network mode preference is currently set and then change it to prefer faster networks like 4G/5G.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_aed4ba03dac94c5d8fcaa733",
+            "name": "check_network_mode_preference",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 31,
+        "timestamp": "2026-09-27T03:36:08.998009",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 73,
+          "prompt_tokens": 5407
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_aed4ba03dac94c5d8fcaa733",
+        "role": "tool",
+        "content": "Network Mode Preference: 2g_only",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 32,
+        "timestamp": "2026-09-27T03:36:08.998297"
+      },
+      {
+        "role": "user",
+        "content": "Ah, that's the problem! My network mode is set to 2G only. Let me change it to prefer 4G/5G networks for better speed.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_3f32368734324ce793e40131",
+            "name": "set_network_mode_preference",
+            "arguments": {
+              "mode": "4g_5g_preferred"
+            },
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 33,
+        "timestamp": "2026-09-27T03:36:25.918354",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 70,
+          "prompt_tokens": 5505
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_3f32368734324ce793e40131",
+        "role": "tool",
+        "content": "Preferred Network Mode set to: 4g_5g_preferred\nStatus Bar: 📶⁴ Excellent | 5G | 📱 Data Enabled | 🔋 80%",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 34,
+        "timestamp": "2026-09-27T03:36:25.918738"
+      },
+      {
+        "role": "user",
+        "content": "Excellent! The status bar now shows I'm on 5G with excellent signal. Let me run a speed test to confirm the internet speed is now excellent.\n\n",
+        "tool_calls": [
+          {
+            "id": "call_ba4049e6f7764157810c45e9",
+            "name": "run_speed_test",
+            "arguments": {},
+            "requestor": "user"
+          }
+        ],
+        "is_audio": false,
+        "turn_idx": 35,
+        "timestamp": "2026-09-27T03:36:41.353001",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 49,
+          "prompt_tokens": 5633
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      },
+      {
+        "id": "call_ba4049e6f7764157810c45e9",
+        "role": "tool",
+        "content": "Speed Test Result: 275.00 Mbps (Excellent). Connection is very fast.",
+        "requestor": "user",
+        "error": false,
+        "turn_idx": 36,
+        "timestamp": "2026-09-27T03:36:41.353249"
+      },
+      {
+        "role": "user",
+        "content": "Perfect! The speed test shows 275.00 Mbps, which is excellent speed. This is exactly what I needed.\n\nThe issue has been resolved. My mobile data is now working with excellent internet speed. Thank you for your help!\n\n###STOP###",
+        "tool_calls": null,
+        "is_audio": false,
+        "turn_idx": 37,
+        "timestamp": "2026-09-27T03:36:54.829233",
+        "cost": 0.0,
+        "usage": {
+          "completion_tokens": 56,
+          "prompt_tokens": 5719
+        },
+        "generation_time_seconds": null,
+        "audio_format": null,
+        "audio_path": null,
+        "audio_script_gold": null,
+        "speech_effects": null,
+        "source_effects": null,
+        "channel_effects": null,
+        "turn_taking_action": null,
+        "utterance_ids": null,
+        "chunk_id": null,
+        "is_final_chunk": true,
+        "source": null,
+        "contains_speech": true
+      }
+    ],
+    "ticks": null,
+    "trial": null,
+    "seed": 42,
+    "mode": "half_duplex",
+    "speech_environment": null,
+    "review": null,
+    "user_only_review": null,
+    "info": null,
+    "auth_classification": null,
+    "hallucination_retries_used": 0,
+    "hallucination_check": null,
+    "provider_session_id": null,
+    "effect_timeline": null
+  }
+}

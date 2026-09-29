@@ -1,0 +1,1697 @@
+{
+  "summary": {
+    "previously_failed_tasks": 33,
+    "checked_tasks": 33,
+    "variants": {
+      "json_format": 33,
+      "numeric_inside_json": 21
+    },
+    "failures": [],
+    "seconds": 13.5
+  },
+  "tasks": [
+    {
+      "task": "banking_syn_v1_train_000588_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001107_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000123_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000144_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001087_l4_two_skill",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -22.0,
+          -22.0,
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -22.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000176_l5_medium_workflow",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -38.0,
+          -38.0,
+          -38.0,
+          -38.0,
+          -22.0,
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -38.0,
+              -38.0,
+              -38.0,
+              -38.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -38.0,
+              -38.0,
+              -38.0,
+              -38.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001023_l5_medium_workflow",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -38.0,
+          -38.0,
+          -38.0,
+          -38.0,
+          -22.0,
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -38.0,
+              -38.0,
+              -38.0,
+              -38.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -38.0,
+              -38.0,
+              -38.0,
+              -38.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001067_l5_medium_workflow",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -38.0,
+          -38.0,
+          -38.0,
+          -38.0,
+          -22.0,
+          -22.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -38.0,
+              -38.0,
+              -38.0,
+              -38.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -38.0,
+              -38.0,
+              -38.0,
+              -38.0,
+              -22.0,
+              -22.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001085_l6_full_workflow",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -42.0,
+          -42.0,
+          -42.0,
+          -42.0,
+          -42.0,
+          -26.0,
+          -26.0,
+          -4.0,
+          -4.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -42.0,
+              -42.0,
+              -42.0,
+              -42.0,
+              -42.0,
+              -26.0,
+              -26.0,
+              -4.0,
+              -4.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -42.0,
+              -42.0,
+              -42.0,
+              -42.0,
+              -42.0,
+              -26.0,
+              -26.0,
+              -4.0,
+              -4.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000067_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000099_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001227_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001443_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000595_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000731_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001379_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000127_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000134_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000594_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000586_l4_two_skill",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -20.0,
+          -20.0,
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000182_l4_two_skill",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -20.0,
+          -20.0,
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000198_l4_two_skill",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -20.0,
+          -20.0,
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000270_l4_two_skill",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -20.0,
+          -20.0,
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000390_l4_two_skill",
+      "domain": "banking",
+      "basis": [
+        "DB"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          -20.0,
+          -20.0,
+          -14.0,
+          -0.0
+        ],
+        "progress_reason": null,
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              -20.0,
+              -20.0,
+              -14.0,
+              -0.0
+            ],
+            "progress_reason": null,
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000279_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000587_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001411_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000515_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000115_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000503_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000735_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_001335_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    },
+    {
+      "task": "banking_syn_v1_train_000107_l3_single_action",
+      "domain": "banking",
+      "basis": [
+        "ACTION"
+      ],
+      "baseline": {
+        "reward": 1.0,
+        "db_match": true,
+        "actions_match": true,
+        "progress_scores": [
+          null,
+          null
+        ],
+        "progress_reason": "target: ValueError: Unsupported progress reward basis",
+        "tool_errors": []
+      },
+      "variants": [
+        {
+          "mode": "json_format",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        },
+        {
+          "mode": "numeric_inside_json",
+          "same_db_state": true,
+          "same_progress": true,
+          "same_reward": true,
+          "alternate": {
+            "reward": 1.0,
+            "db_match": true,
+            "actions_match": true,
+            "progress_scores": [
+              null,
+              null
+            ],
+            "progress_reason": "target: ValueError: Unsupported progress reward basis",
+            "tool_errors": []
+          }
+        }
+      ]
+    }
+  ]
+}

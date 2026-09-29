@@ -1,0 +1,390 @@
+{
+  "credit": {
+    "raw_rows": 38848,
+    "unique_rows": 38848,
+    "logged_updates": 140,
+    "accepted_trajectories": 17920,
+    "batch_reward_std": 0.06833571317288495,
+    "random_16_group_se": 0.0665354476258951,
+    "ma10_range": 0.10078125000000004,
+    "null_ma10_range_5_50_95": [
+      0.0703125,
+      0.09296875000000004,
+      0.11953125000000003
+    ],
+    "null_range_ge_observed_fraction": 0.307,
+    "overall_prefilter_reward": 0.607212726523888,
+    "accepted_reward_first20": 0.541796875,
+    "accepted_reward_last20": 0.5734375,
+    "policy_lag_mean": 1.6321428571428571,
+    "policy_lag_max": 15,
+    "mixed_policy_trajectory_fraction": 0.38761160714285714,
+    "success_wall_seconds": 139.7088521360502,
+    "failure_wall_seconds": 229.64637172251645,
+    "no_agent_turn_trajectories": 337,
+    "prefilter_first5000": {
+      "raw": 0.5302,
+      "fixed_domain": 0.5313351030014316,
+      "domains": {
+        "airline": 0.46480869154463866,
+        "banking": 0.8479087452471483,
+        "retail": 0.4697318007662835,
+        "telecom": 0.30798479087452474
+      }
+    },
+    "prefilter_last5000": {
+      "raw": 0.6436,
+      "fixed_domain": 0.6354744133076833,
+      "domains": {
+        "airline": 0.5844216417910447,
+        "banking": 0.9054927302100162,
+        "retail": 0.611003861003861,
+        "telecom": 0.36254295532646047
+      }
+    },
+    "train/grad_norm": {
+      "mean": 0.5834493687743194,
+      "max": 1.2829866967080168,
+      "first20": 0.7222860844539406,
+      "last20": 0.5775815211366667
+    },
+    "train/kl_loss": {
+      "mean": 0.008469148322287064,
+      "max": 0.0465512759983539,
+      "first20": 0.000723787527385815,
+      "last20": 0.020331294322386333
+    },
+    "train/entropy_loss": {
+      "mean": 0.2685965913747038,
+      "max": 0.3705950379371643,
+      "first20": 0.3037550784647465,
+      "last20": 0.24519315883517265
+    },
+    "train/train_rollout_logprob_abs_diff": {
+      "mean": 0.006420406033950148,
+      "max": 0.0083105992525815,
+      "first20": 0.0068545738700776845,
+      "last20": 0.006271696370094969
+    },
+    "train/tis_clipfrac": {
+      "mean": 9.318180868181766e-07,
+      "max": 2.612876232888084e-05,
+      "first20": 1.8185556996286322e-06,
+      "last20": 7.838385272407322e-07
+    },
+    "rollout/truncated_ratio": {
+      "mean": 5.580357142857143e-05,
+      "max": 0.0078125,
+      "first20": 0.0,
+      "last20": 0.0
+    },
+    "rollout/zero_variance_group_rate": {
+      "mean": 0.0,
+      "max": 0.0,
+      "first20": 0.0,
+      "last20": 0.0
+    },
+    "filter_totals_at_last_update": {
+      "rollout/filtered_groups/official_outcome_all_one": 1652.0,
+      "rollout/filtered_groups/official_outcome_all_zero": 743.0,
+      "rollout/filtered_groups/removed_sample": 89.0,
+      "rollout/filtered_groups/permanently_too_long": 85.0
+    },
+    "filter_first20": {
+      "all_one": 0.21493624772313297,
+      "all_zero": 0.1766848816029144,
+      "accepted": 0.5828779599271403
+    },
+    "filter_last20": {
+      "all_one": 0.4027777777777778,
+      "all_zero": 0.1527777777777778,
+      "accepted": 0.40404040404040403
+    },
+    "discarded_all_zero_progress": {
+      "usable_groups": 748,
+      "with_positive_net_progress": 648,
+      "with_positive_and_different_net_progress": 545
+    },
+    "credit_check": {
+      "groups": 2240,
+      "trajectories": 17920,
+      "turns": 225748,
+      "outcome_normalization_max_error": 1.140931686904878e-07,
+      "addition_max_error": 8.881784197001252e-16,
+      "outcome_rms": 0.9354121340751342,
+      "progress_rms": 0.9356108933301163,
+      "total_rms": 1.7400814553638315,
+      "sign_flip_fraction": 0.05119071997469965,
+      "unavailable_reasons": {
+        "target: ValueError: Unsupported progress reward basis": 928
+      }
+    }
+  },
+  "grpo": {
+    "raw_rows": 38263,
+    "unique_rows": 37502,
+    "logged_updates": 100,
+    "accepted_trajectories": 12800,
+    "batch_reward_std": 0.06591521327363731,
+    "random_16_group_se": 0.06723898639213173,
+    "ma10_range": 0.07578125000000002,
+    "null_ma10_range_5_50_95": [
+      0.06328125000000007,
+      0.08671874999999996,
+      0.11640625000000004
+    ],
+    "null_range_ge_observed_fraction": 0.76325,
+    "overall_prefilter_reward": 0.5959148845394913,
+    "accepted_reward_first20": 0.54609375,
+    "accepted_reward_last20": 0.559375,
+    "policy_lag_mean": 1.703203125,
+    "policy_lag_max": 10,
+    "mixed_policy_trajectory_fraction": 0.3665625,
+    "success_wall_seconds": 113.95673025989883,
+    "failure_wall_seconds": 186.7350639217882,
+    "no_agent_turn_trajectories": 301,
+    "prefilter_first5000": {
+      "raw": 0.5224,
+      "fixed_domain": 0.5236456070190579,
+      "domains": {
+        "airline": 0.45788235294117646,
+        "banking": 0.828080229226361,
+        "retail": 0.47113163972286376,
+        "telecom": 0.30245746691871456
+      }
+    },
+    "prefilter_last5000": {
+      "raw": 0.637,
+      "fixed_domain": 0.6349142179226499,
+      "domains": {
+        "airline": 0.5706642888987963,
+        "banking": 0.933996383363472,
+        "retail": 0.5965703971119134,
+        "telecom": 0.3885819521178637
+      }
+    },
+    "train/grad_norm": {
+      "mean": 0.32484900695766306,
+      "max": 0.8844958435098942,
+      "first20": 0.36066778867805493,
+      "last20": 0.32034457670228533
+    },
+    "train/kl_loss": {
+      "mean": 0.009004611868876907,
+      "max": 0.0713223442435264,
+      "first20": 0.00474209039239206,
+      "last20": 0.01372901499271387
+    },
+    "train/entropy_loss": {
+      "mean": 0.2736129403114319,
+      "max": 0.3653762340545654,
+      "first20": 0.27248583287000655,
+      "last20": 0.2622400835156441
+    },
+    "train/train_rollout_logprob_abs_diff": {
+      "mean": 0.006957932435907371,
+      "max": 0.0293276943266391,
+      "first20": 0.00935608232393856,
+      "last20": 0.00630292585119599
+    },
+    "train/tis_clipfrac": {
+      "mean": 1.8358438014726827e-05,
+      "max": 0.0008657816797494,
+      "first20": 8.807831851525903e-05,
+      "last20": 4.7579887905158105e-07
+    },
+    "rollout/truncated_ratio": {
+      "mean": 0.000234375,
+      "max": 0.0078125,
+      "first20": 0.000390625,
+      "last20": 0.0
+    },
+    "rollout/zero_variance_group_rate": {
+      "mean": 0.0,
+      "max": 0.0,
+      "first20": 0.0,
+      "last20": 0.0
+    },
+    "filter_totals_at_last_update": {
+      "rollout/filtered_groups/official_outcome_all_zero": 514.0,
+      "rollout/filtered_groups/official_outcome_all_one": 1219.0,
+      "rollout/filtered_groups/permanently_too_long": 97.0,
+      "rollout/filtered_groups/removed_sample": 66.0
+    },
+    "filter_first20": {
+      "all_one": 0.27228525121555913,
+      "all_zero": 0.16369529983792544,
+      "accepted": 0.5186385737439222
+    },
+    "filter_last20": {
+      "all_one": 0.3823146944083225,
+      "all_zero": 0.1482444733420026,
+      "accepted": 0.41612483745123535
+    },
+    "paired_with_credit": {
+      "groups": 4665,
+      "task_identity_agreement": 1.0,
+      "group_reward_correlation": 0.9154123064616354,
+      "ma50_correlation": 0.9417523331443043,
+      "detrended_ma50_correlation": 0.911045965926389
+    }
+  },
+  "credit_repeat": {
+    "raw_rows": 37525,
+    "unique_rows": 37525,
+    "logged_updates": 140,
+    "accepted_trajectories": 17920,
+    "batch_reward_std": 0.06881642853746557,
+    "random_16_group_se": 0.06813560183304665,
+    "ma10_range": 0.10546875,
+    "null_ma10_range_5_50_95": [
+      0.07265624999999998,
+      0.09531250000000002,
+      0.12421874999999999
+    ],
+    "null_range_ge_observed_fraction": 0.278,
+    "overall_prefilter_reward": 0.604290473017988,
+    "accepted_reward_first20": 0.525,
+    "accepted_reward_last20": 0.555859375,
+    "policy_lag_mean": 1.6836495535714286,
+    "policy_lag_max": 10,
+    "mixed_policy_trajectory_fraction": 0.404296875,
+    "success_wall_seconds": 141.42989835832668,
+    "failure_wall_seconds": 227.38603411870113,
+    "no_agent_turn_trajectories": 314,
+    "prefilter_first5000": {
+      "raw": 0.5218,
+      "fixed_domain": 0.523095132192788,
+      "domains": {
+        "airline": 0.461502125649504,
+        "banking": 0.820952380952381,
+        "retail": 0.46513409961685825,
+        "telecom": 0.3087121212121212
+      }
+    },
+    "prefilter_last5000": {
+      "raw": 0.6406,
+      "fixed_domain": 0.638959181243169,
+      "domains": {
+        "airline": 0.5789239662072032,
+        "banking": 0.9208371246587808,
+        "retail": 0.605570530098832,
+        "telecom": 0.39888682745825604
+      }
+    },
+    "train/grad_norm": {
+      "mean": 0.5936553016287105,
+      "max": 1.1846935840189847,
+      "first20": 0.678991795406352,
+      "last20": 0.6156551264617691
+    },
+    "train/kl_loss": {
+      "mean": 0.008197765124038676,
+      "max": 0.0792206302285194,
+      "first20": 0.0018240153396618,
+      "last20": 0.015985398599877913
+    },
+    "train/entropy_loss": {
+      "mean": 0.27023930294173104,
+      "max": 0.3864148259162903,
+      "first20": 0.30410235449671746,
+      "last20": 0.2555775508284569
+    },
+    "train/train_rollout_logprob_abs_diff": {
+      "mean": 0.0065534470503084905,
+      "max": 0.0091161150485277,
+      "first20": 0.0069571417756378135,
+      "last20": 0.006516377883963241
+    },
+    "train/tis_clipfrac": {
+      "mean": 4.6557005524456535e-07,
+      "max": 9.267497262044344e-06,
+      "first20": 2.8306160402280513e-07,
+      "last20": 1.5898453966656235e-07
+    },
+    "rollout/truncated_ratio": {
+      "mean": 0.00011160714285714285,
+      "max": 0.0078125,
+      "first20": 0.0,
+      "last20": 0.0
+    },
+    "rollout/zero_variance_group_rate": {
+      "mean": 0.0,
+      "max": 0.0,
+      "first20": 0.0,
+      "last20": 0.0
+    },
+    "filter_totals_at_last_update": {
+      "rollout/filtered_groups/official_outcome_all_zero": 690.0,
+      "rollout/filtered_groups/official_outcome_all_one": 1551.0,
+      "rollout/filtered_groups/removed_sample": 82.0,
+      "rollout/filtered_groups/permanently_too_long": 80.0
+    },
+    "filter_first20": {
+      "all_one": 0.18108651911468812,
+      "all_zero": 0.15090543259557343,
+      "accepted": 0.6438631790744467
+    },
+    "filter_last20": {
+      "all_one": 0.3960526315789474,
+      "all_zero": 0.15394736842105264,
+      "accepted": 0.42105263157894735
+    },
+    "discarded_all_zero_progress": {
+      "usable_groups": 695,
+      "with_positive_net_progress": 595,
+      "with_positive_and_different_net_progress": 498
+    },
+    "paired_with_credit": {
+      "groups": 4678,
+      "task_identity_agreement": 1.0,
+      "group_reward_correlation": 0.9148342049466168,
+      "ma50_correlation": 0.9308451959773346,
+      "detrended_ma50_correlation": 0.9032449655233015
+    },
+    "credit_check": {
+      "groups": 2240,
+      "trajectories": 17920,
+      "turns": 226381,
+      "outcome_normalization_max_error": 1.140931686904878e-07,
+      "addition_max_error": 8.049116928532385e-16,
+      "outcome_rms": 0.9354121141281792,
+      "progress_rms": 0.9325582634047951,
+      "total_rms": 1.7349755473396609,
+      "sign_flip_fraction": 0.05556354568054574,
+      "unavailable_reasons": {
+        "target: ValueError: Unsupported progress reward basis": 904
+      }
+    }
+  },
+  "official_comparisons": {
+    "mix-iter139-four-domain minus mix-iter129-four-domain": {
+      "delta": -0.0038071065989847717,
+      "paired_task_ci95": [
+        -0.030456852791878174,
+        0.02284263959390863
+      ]
+    },
+    "vanilla-grpo-iter139-four-domain minus vanilla-grpo-iter129-four-domain": {
+      "delta": -0.015228426395939087,
+      "paired_task_ci95": [
+        -0.04187817258883249,
+        0.011421319796954314
+      ]
+    },
+    "mix-iter139-four-domain minus sft": {
+      "delta": 0.03299492385786802,
+      "paired_task_ci95": [
+        0.0038071065989847717,
+        0.06218274111675127
+      ]
+    },
+    "vanilla-grpo-iter139-four-domain minus sft": {
+      "delta": 0.02030456852791878,
+      "paired_task_ci95": [
+        -0.012690355329949238,
+        0.0532994923857868
+      ]
+    }
+  }
+}

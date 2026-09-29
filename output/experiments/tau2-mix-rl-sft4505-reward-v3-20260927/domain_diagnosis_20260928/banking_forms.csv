@@ -1,0 +1,8 @@
+banking_form,groups,reward,trained,kept,all_zero,all_one,mixed
+l1_evidence,57,0.19078947368421054,21,21,37,5,15
+l2_retrieval,20,0.7875,12,12,0,9,11
+l3_decision,90,0.9986111111111111,1,1,0,89,1
+l3_single_action,113,0.9435840707964602,85,88,0,82,31
+l4_two_skill,181,0.9343922651933702,142,144,0,132,49
+l5_medium_workflow,85,0.775,74,74,3,35,47
+l6_full_workflow,28,0.7589285714285714,26,26,0,9,19

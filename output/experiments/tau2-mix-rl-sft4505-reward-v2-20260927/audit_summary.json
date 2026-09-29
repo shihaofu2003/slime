@@ -1,0 +1,46 @@
+{
+  "domains": {
+    "airline": {
+      "tasks_audited": 1148,
+      "reference_execution_errors": 0,
+      "sync_difference_tasks": 0,
+      "numeric_equivalence_difference_tasks": 274,
+      "numeric_argument_errors": 0,
+      "v2_reference_checks": 274,
+      "v2_reference_failures": 0
+    },
+    "retail": {
+      "tasks_audited": 563,
+      "reference_execution_errors": 0,
+      "sync_difference_tasks": 0,
+      "numeric_equivalence_difference_tasks": 0,
+      "numeric_argument_errors": 0,
+      "v2_reference_checks": 1,
+      "v2_reference_failures": 0
+    },
+    "telecom": {
+      "tasks_audited": 271,
+      "reference_execution_errors": 0,
+      "sync_difference_tasks": 155,
+      "numeric_equivalence_difference_tasks": 102,
+      "numeric_argument_errors": 0,
+      "v2_reference_checks": 155,
+      "v2_reference_failures": 0
+    },
+    "banking": {
+      "tasks_audited": 542,
+      "reference_execution_errors": 0,
+      "sync_difference_tasks": 0,
+      "numeric_equivalence_difference_tasks": 16,
+      "numeric_argument_errors": 0,
+      "v2_reference_checks": 17,
+      "v2_reference_failures": 0
+    }
+  },
+  "retail_item_mapping": {
+    "tasks_checked": 137,
+    "legacy_wrong_tasks": 13,
+    "v2_wrong_tasks": 0,
+    "v2_pair_order_mismatches": 0
+  }
+}

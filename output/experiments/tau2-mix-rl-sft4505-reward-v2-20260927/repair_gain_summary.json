@@ -1,0 +1,26 @@
+{
+  "scope": "Fixed v1 Telecom trajectories; only scoring corrected; no new rollouts or optimizer updates",
+  "trajectories": 2192,
+  "groups": 274,
+  "distinct_tasks": 186,
+  "old_reward": 0.3312043795620438,
+  "corrected_reward": 0.5442518248175182,
+  "score_delta": 0.21304744525547442,
+  "flips_0_to_1": 467,
+  "flips_1_to_0": 0,
+  "still_failed": 999,
+  "binary_informative_groups_old": 87,
+  "binary_informative_groups_corrected": 217,
+  "trained_groups": 221,
+  "trained_all_zero_groups_recovering_binary_variance": 94,
+  "whole_mix_score_delta_from_telecom_only": 0.022767160686427458,
+  "window": {
+    "mixed_groups": 400,
+    "min_telecom_groups": 32,
+    "max_telecom_groups": 54,
+    "old_std": 0.05426504988264434,
+    "corrected_std": 0.04418502236104547,
+    "old_peak_to_trough": 0.23039215686274508,
+    "corrected_peak_to_trough": 0.21109068627450978
+  }
+}

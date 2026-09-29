@@ -1,0 +1,244 @@
+{
+  "completed_groups": 2593,
+  "trajectories": 20744,
+  "trained_groups": 2240,
+  "trained_trajectories": 17920,
+  "task_adjusted": {
+    "airline": {
+      "tasks": 289,
+      "groups": 681,
+      "gain_per_100_updates": 0.12294061600243629,
+      "ci": [
+        0.08350117517952466,
+        0.16175860326840716
+      ]
+    },
+    "retail": {
+      "tasks": 163,
+      "groups": 399,
+      "gain_per_100_updates": 0.014602248302201939,
+      "ci": [
+        -0.025683199193403877,
+        0.057037308181310566
+      ]
+    },
+    "telecom": {
+      "tasks": 61,
+      "groups": 152,
+      "gain_per_100_updates": 0.12144772426397152,
+      "ci": [
+        0.029574073153652722,
+        0.20471929199897912
+      ]
+    },
+    "banking": {
+      "tasks": 152,
+      "groups": 367,
+      "gain_per_100_updates": 0.08761301601620915,
+      "ci": [
+        0.039389901521463065,
+        0.13751101108856742
+      ]
+    }
+  },
+  "health": {
+    "train/grad_norm": {
+      "first20": 0.6208747317480394,
+      "last20": 0.5812585867979639,
+      "minimum": 0.2867822665092291,
+      "maximum": 1.4382579298061062
+    },
+    "train/entropy_loss": {
+      "first20": 0.3007640473544598,
+      "last20": 0.21881139129400248,
+      "minimum": 0.1689918935298919,
+      "maximum": 0.4388133585453033
+    },
+    "train/kl_loss": {
+      "first20": 0.00065684412256809,
+      "last20": 0.021723190462216678,
+      "minimum": 0.0,
+      "maximum": 0.0475669912993907
+    },
+    "train/tis_clipfrac": {
+      "first20": 5.502038675331278e-07,
+      "last20": 1.07131248796577e-06,
+      "minimum": 0.0,
+      "maximum": 0.0001201923078042
+    },
+    "train/tis_weight": {
+      "first20": 1.0000262409448624,
+      "last20": 1.0000266402959823,
+      "minimum": 0.9997596740722656,
+      "maximum": 1.0005937814712524
+    },
+    "rollout/policy_lag_mean": {
+      "first20": 2.65859375,
+      "last20": 2.9453125,
+      "minimum": 0.0,
+      "maximum": 4.40625
+    },
+    "rollout/policy_lag_max": {
+      "first20": 6.9,
+      "last20": 8.15,
+      "minimum": 0.0,
+      "maximum": 24.0
+    }
+  },
+  "domains": [
+    {
+      "domain": "airline",
+      "first400": 0.441340782122905,
+      "last400": 0.5648907103825137,
+      "delta": 0.1235499282596087,
+      "ci_low": 0.04794058309563267,
+      "ci_high": 0.19882416439336037,
+      "first_groups": 179,
+      "last_groups": 183,
+      "completed_groups": 1142,
+      "trained_groups": 1061,
+      "pool_tasks": 1148,
+      "seen_tasks": 750,
+      "trained_tasks": 707,
+      "kept_rate": 0.9378283712784589,
+      "trained_share": 0.47366071428571427,
+      "pool_share": 0.4548335974643423,
+      "all_zero_rate": 0.16987740805604204,
+      "all_one_rate": 0.20140105078809106,
+      "trained_uniform_fraction": 0.34213006597549483,
+      "progress_available": 1.0,
+      "mean_tokens": 1593.7280867106504,
+      "outcome_rms": 0.7587051261611782,
+      "progress_rms": 0.9420176383011617,
+      "total_advantage_rms": 1.5374632519167422,
+      "zero_credit_fraction": 0.05595342753169272,
+      "opposite_sign_fraction": 0.04033557292010684,
+      "zero_delta_progress_fraction": 0.7908548924341079,
+      "mean_policy_lag": 2.6923892554194158,
+      "invalid_termination": 0.015433450087565675,
+      "failure_count": 4398
+    },
+    {
+      "domain": "retail",
+      "first400": 0.49133663366336633,
+      "last400": 0.5221518987341772,
+      "delta": 0.030815265070810893,
+      "ci_low": -0.08408198974034059,
+      "ci_high": 0.1448538941817254,
+      "first_groups": 101,
+      "last_groups": 79,
+      "completed_groups": 600,
+      "trained_groups": 598,
+      "pool_tasks": 563,
+      "seen_tasks": 364,
+      "trained_tasks": 362,
+      "kept_rate": 0.9966666666666667,
+      "trained_share": 0.2669642857142857,
+      "pool_share": 0.22305863708399365,
+      "all_zero_rate": 0.21166666666666667,
+      "all_one_rate": 0.23333333333333334,
+      "trained_uniform_fraction": 0.4431438127090301,
+      "progress_available": 1.0,
+      "mean_tokens": 1440.1222826086957,
+      "outcome_rms": 0.6980307013813751,
+      "progress_rms": 0.9439751105933122,
+      "total_advantage_rms": 1.4549960707393998,
+      "zero_credit_fraction": 0.06443552963135027,
+      "opposite_sign_fraction": 0.03506767828442485,
+      "zero_delta_progress_fraction": 0.7869263166761653,
+      "mean_policy_lag": 2.5585284280936453,
+      "invalid_termination": 0.00375,
+      "failure_count": 2250
+    },
+    {
+      "domain": "telecom",
+      "first400": 0.4838709677419355,
+      "last400": 0.5425531914893617,
+      "delta": 0.058682223747426154,
+      "ci_low": -0.11876134072580648,
+      "ci_high": 0.22429551742762202,
+      "first_groups": 31,
+      "last_groups": 47,
+      "completed_groups": 277,
+      "trained_groups": 220,
+      "pool_tasks": 271,
+      "seen_tasks": 186,
+      "trained_tasks": 151,
+      "kept_rate": 0.8014440433212996,
+      "trained_share": 0.09821428571428571,
+      "pool_share": 0.10736925515055468,
+      "all_zero_rate": 0.09025270758122744,
+      "all_one_rate": 0.16967509025270758,
+      "trained_uniform_fraction": 0.2590909090909091,
+      "progress_available": 1.0,
+      "mean_tokens": 2094.93125,
+      "outcome_rms": 0.805166146053296,
+      "progress_rms": 0.9757251849244535,
+      "total_advantage_rms": 1.5631799323373012,
+      "zero_credit_fraction": 0.031192956382341423,
+      "opposite_sign_fraction": 0.06558708773875437,
+      "zero_delta_progress_fraction": 0.694164404928638,
+      "mean_policy_lag": 7.169886363636364,
+      "invalid_termination": 0.023014440433212997,
+      "failure_count": 1038
+    },
+    {
+      "domain": "banking",
+      "first400": 0.7907303370786517,
+      "last400": 0.8502747252747253,
+      "delta": 0.05954438819607355,
+      "ci_low": -0.022371982825524276,
+      "ci_high": 0.1421645164350308,
+      "first_groups": 89,
+      "last_groups": 91,
+      "completed_groups": 574,
+      "trained_groups": 361,
+      "pool_tasks": 542,
+      "seen_tasks": 359,
+      "trained_tasks": 250,
+      "kept_rate": 0.6376306620209059,
+      "trained_share": 0.1611607142857143,
+      "pool_share": 0.21473851030110935,
+      "all_zero_rate": 0.06968641114982578,
+      "all_one_rate": 0.6289198606271778,
+      "trained_uniform_fraction": 0.5263157894736842,
+      "progress_available": 0.8337950138504155,
+      "mean_tokens": 402.92763157894734,
+      "outcome_rms": 0.6437947023998851,
+      "progress_rms": 0.798526629049152,
+      "total_advantage_rms": 1.2369310130603295,
+      "zero_credit_fraction": 0.18454954823407535,
+      "opposite_sign_fraction": 0.00535572783358766,
+      "zero_delta_progress_fraction": 0.23850625412952756,
+      "mean_policy_lag": 2.021814404432133,
+      "invalid_termination": 0.00021777003484320557,
+      "failure_count": 757
+    }
+  ],
+  "retail_item_windows": [
+    {
+      "period": "first400",
+      "item_change": false,
+      "groups": 81,
+      "reward": 0.5308641975308642
+    },
+    {
+      "period": "first400",
+      "item_change": true,
+      "groups": 20,
+      "reward": 0.33125
+    },
+    {
+      "period": "last400",
+      "item_change": false,
+      "groups": 55,
+      "reward": 0.625
+    },
+    {
+      "period": "last400",
+      "item_change": true,
+      "groups": 24,
+      "reward": 0.2864583333333333
+    }
+  ]
+}

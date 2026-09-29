@@ -1,0 +1,36 @@
+{
+  "tasks": {
+    "airline": 1148,
+    "telecom": 271,
+    "retail": 563,
+    "banking": 542
+  },
+  "variants": {
+    "numeric_arguments": {
+      "tasks": 608,
+      "same_db_state": 608,
+      "same_progress": 608,
+      "same_reward": 608,
+      "actions_match": 608
+    },
+    "json_format": {
+      "tasks": 209,
+      "same_db_state": 209,
+      "same_progress": 209,
+      "same_reward": 209,
+      "actions_match": 209
+    },
+    "numeric_inside_json": {
+      "tasks": 89,
+      "same_db_state": 89,
+      "same_progress": 89,
+      "same_reward": 89,
+      "actions_match": 89
+    }
+  },
+  "baseline_rewards": {
+    "1.0": 2524
+  },
+  "failures": [],
+  "seconds": 409.3
+}

@@ -438,6 +438,9 @@ RUN_ARGS=(
   --user-api-key "${USER_API_KEY}"
   --user-temperature "${USER_TEMPERATURE}"
 )
+if [[ -n "${RESULTS_DIR:-}" ]]; then
+  RUN_ARGS+=(--results-dir "${RESULTS_DIR}")
+fi
 
 if [[ -n "${SIMULATION_TIMEOUT}" ]]; then
   RUN_ARGS+=(--timeout "${SIMULATION_TIMEOUT}")

@@ -23,7 +23,7 @@ MODEL_ROOT="${MODEL_ROOT:-${SERVICE_AGENT_ROOT}/models}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-${SERVICE_AGENT_ROOT}/checkpoints}"
 DATA_ROOT="${DATA_ROOT:-${SERVICE_AGENT_ROOT}/datasets}"
 TAU2_SRC="${SERVICE_AGENT_ROOT}/tau2-bench/src"
-RL_DIR="${PROJECT_ROOT}/examples/tau2-bench/rl"
+RL_DIR="${PROJECT_ROOT}/examples/tau2-bench/rl_db_count_v1"
 SHARED_DIR="${PROJECT_ROOT}/examples/tau2-bench/shared"
 
 SOURCE_RL_DATA="${SOURCE_RL_DATA:-${DATA_ROOT}/AReaL-tau2-data/tau2_rl_train.jsonl}"
@@ -108,13 +108,13 @@ if [[ -n "${TAU2_RL_DOMAIN_QUOTA}" && "${DATA_SOURCE_PATH}" != "filters.DomainQu
   exit 1
 fi
 case "${TAU2_TURN_CREDIT_VERSION}" in
-  ""|turn-credit-v1|turn-credit-v2|progress-rtg-v1) ;;
+  ""|turn-credit-v1|turn-credit-v2|progress-db-count-v1) ;;
   *)
     echo "[ERROR] Unsupported TAU2_TURN_CREDIT_VERSION=${TAU2_TURN_CREDIT_VERSION}" >&2
     exit 1 ;;
 esac
 if [[ -z "${TAU2_REPLACE_ZERO_SIGNAL_GROUPS}" ]]; then
-  if [[ "${TAU2_TURN_CREDIT_VERSION}" == "turn-credit-v2" || "${TAU2_TURN_CREDIT_VERSION}" == "progress-rtg-v1" ]]; then
+  if [[ "${TAU2_TURN_CREDIT_VERSION}" == "turn-credit-v2" || "${TAU2_TURN_CREDIT_VERSION}" == "progress-db-count-v1" ]]; then
     TAU2_REPLACE_ZERO_SIGNAL_GROUPS=0
   else
     TAU2_REPLACE_ZERO_SIGNAL_GROUPS=1

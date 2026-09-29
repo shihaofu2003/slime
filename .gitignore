@@ -217,3 +217,17 @@ examples/*
 # Claude Code local state (project skills under .claude/skills/ ARE tracked)
 .claude/settings.local.json
 .claude/projects/
+
+# Local scheduling and generated runtime snapshots
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
+/PATCH_TEST_TMP
+output/**/jobs/
+output/**/checkpoints/
+output/**/dependencies/
+output/**/arms/
+output/**/data/
+output/**/tau2_data/
+output/**/trajectories/
+output/**/service/
+project_page/service-agent-site.zip

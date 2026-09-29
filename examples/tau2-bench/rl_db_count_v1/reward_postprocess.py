@@ -62,10 +62,10 @@ from slime.utils.types import Sample
 
 TURN_CREDIT_V1 = "turn-credit-v1"
 TURN_CREDIT_V2 = "turn-credit-v2"
-PROGRESS_RTG_V1 = "progress-rtg-v1"
+PROGRESS_DB_COUNT_V1 = "progress-db-count-v1"
 # Backward-compatible name used by the selected v1 scripts and tests.
 TURN_CREDIT_VERSION = TURN_CREDIT_V1
-SUPPORTED_TURN_CREDIT_VERSIONS = frozenset({TURN_CREDIT_V1, TURN_CREDIT_V2, PROGRESS_RTG_V1})
+SUPPORTED_TURN_CREDIT_VERSIONS = frozenset({TURN_CREDIT_V1, TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1})
 _TURN_PENALTY_SPECS = {
     "nonexistent_tool": (0.15, 0.30),
     "malformed_json": (0.15, 0.30),
@@ -858,7 +858,7 @@ def compute_rollout_score(args, sample: Sample) -> tuple[float, dict[str, Any]]:
     version = configured_turn_credit_version()
     if version == TURN_CREDIT_V1:
         return compute_global_score(args, sample)
-    if version in {TURN_CREDIT_V2, PROGRESS_RTG_V1}:
+    if version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
         task_reward = float(sample.get_reward_value(args))
         _, field_details = compute_global_score(args, sample)
         return task_reward, {
@@ -1094,13 +1094,13 @@ def attach_turn_credit_v2_token_advantages(
 
 
 def attach_progress_group_advantages(args, samples):
-    from progress import progress_group_advantages
+    from progress import db_count_group_advantages
 
     k = args.n_samples_per_prompt
     if len(samples) % k:
         raise TurnCreditAlignmentError("Progress postprocess requires complete task groups")
     if args.advantage_estimator != "grpo" or not args.rewards_normalization or not args.grpo_std_normalization:
-        raise ValueError("progress-rtg-v1 requires normalized GRPO with sample std")
+        raise ValueError("progress-db-count-v1 requires normalized GRPO with sample std")
     weight = float(os.environ.get("TAU2_PROGRESS_WEIGHT", "1.0"))
     format_weight = float(os.environ.get("TAU2_FORMAT_WEIGHT", "1.0"))
     progress_gamma = float(os.environ.get("TAU2_PROGRESS_GAMMA", "0.98"))
@@ -1122,9 +1122,14 @@ def attach_progress_group_advantages(args, samples):
             rtgs = [[None] * len(turns) for turns in details]
             progress = [[0.0] * len(turns) for turns in details]
         else:
-            rtgs, progress = progress_group_advantages(
-                [p["scores"] for p in payloads], gamma=progress_gamma
+            rtgs, progress = db_count_group_advantages(
+                [p["scores"] for p in payloads], [p["db_diff_counts"] for p in payloads],
+                gamma=progress_gamma
             )
+        bucket_members = {}
+        for i, payload in enumerate(payloads):
+            for count in payload["db_diff_counts"]:
+                bucket_members.setdefault(count, []).append(i)
         group_signal = False
         for i, sample in enumerate(group):
             values = []
@@ -1137,11 +1142,16 @@ def attach_progress_group_advantages(args, samples):
                 detail.update(outcome_advantage=outcome[i], progress_rtg=rtgs[i][t],
                               progress_advantage=progress[i][t], format_penalty=local,
                               progress_gamma=progress_gamma, advantage=advantage)
+                count = payloads[i]["db_diff_counts"][t]
+                members = bucket_members[count]
+                detail.update(db_diff_count=count, db_bucket_turns=len(members),
+                              db_bucket_trajectories=len(set(members)),
+                              db_diff_side_counts=payloads[i]["db_diff_side_counts"][t])
                 scores = payloads[i]["scores"]
                 detail["progress_reward"] = scores[t + 1] - scores[t] if not reasons else None
                 values.append(advantage)
             tokens = attach_turn_credit_v2_token_advantages(sample, values)
-            sample.train_metadata = {"turn_credit_version": PROGRESS_RTG_V1, "token_advantages": tokens}
+            sample.train_metadata = {"turn_credit_version": PROGRESS_DB_COUNT_V1, "token_advantages": tokens}
             sample.metadata["tau2_progress_group_unavailable_reasons"] = reasons
             sample.metadata["tau2_binary_zero_variance_group"] = not any(outcome)
             group_signal |= any(value != 0 for value in tokens)
@@ -1202,7 +1212,7 @@ def tau2_reward_post_process(
     )
     n_samples_per_prompt = int(_arg_or_default(args, "n_samples_per_prompt", 1))
 
-    if version == PROGRESS_RTG_V1:
+    if version == PROGRESS_DB_COUNT_V1:
         attach_progress_group_advantages(args, flat)
 
     if version == TURN_CREDIT_V2:
@@ -1304,7 +1314,7 @@ def turn_aware_grpo_advantage(args, rollout_data: dict[str, Any]) -> None:
                 f"train metadata for sample {sample_index} is not a dictionary"
             )
         version = sample_metadata.get("turn_credit_version", TURN_CREDIT_V1)
-        if version in {TURN_CREDIT_V2, PROGRESS_RTG_V1}:
+        if version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
             token_advantages = validate_token_advantages(
                 sample_metadata.get("token_advantages"),
                 response_length=int(response_length),

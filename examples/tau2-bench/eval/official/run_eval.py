@@ -575,6 +575,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=300)
     parser.add_argument("--save-prefix", required=True)
     parser.add_argument("--summary-output", default=None)
+    parser.add_argument("--results-dir", default=None, help="Write raw tau2 results below this directory")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--auto-resume", action="store_true")
     parser.add_argument("--verbose-logs", action="store_true")
@@ -663,6 +664,8 @@ def _evaluate_domain(payload: dict[str, Any], domain: str) -> dict[str, Any]:
         f"{args.save_prefix}_{domain}_{args.task_split_name}_"
         f"{args.num_trials}trials"
     )
+    if args.results_dir:
+        save_to = str(Path(args.results_dir).resolve() / save_to)
     config = TextRunConfig(
         domain=domain,
         agent=args.agent,
@@ -716,7 +719,7 @@ def _evaluate_domain(payload: dict[str, Any], domain: str) -> dict[str, Any]:
     )
     domain_summary = {
         "save_to": save_to,
-        "results_file": f"data/simulations/{save_to}/results.json",
+        "results_file": str(Path(save_to) / "results.json") if Path(save_to).is_absolute() else f"data/simulations/{save_to}/results.json",
         "metrics": metrics_dict,
         "pass_metrics": _pass_metrics(results, args.num_trials),
         "retrieval_config": retrieval_config,

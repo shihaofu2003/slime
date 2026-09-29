@@ -31,7 +31,7 @@ from slime.utils.types import Sample
 from reward_postprocess import (
     TURN_CREDIT_V1,
     TURN_CREDIT_V2,
-    PROGRESS_RTG_V1,
+    PROGRESS_DB_COUNT_V1,
     TurnCreditAlignmentError,
     compute_rollout_score,
     turn_credit_v2_group_has_signal,
@@ -354,13 +354,13 @@ def drop_zero_std_or_unsampleable(args, samples: list[Sample], **kwargs) -> Dyna
         turn_credit_version = metadata.get("tau2_turn_credit_version")
         if turn_credit_version:
             group_turn_credit_version = turn_credit_version
-        turn_credit_expected = turn_credit_version in {TURN_CREDIT_V1, TURN_CREDIT_V2, PROGRESS_RTG_V1}
+        turn_credit_expected = turn_credit_version in {TURN_CREDIT_V1, TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}
         if train_metadata is None:
             if turn_credit_expected:
                 reason = "missing_turn_credit_train_metadata"
                 break
             continue
-        if turn_credit_version in {TURN_CREDIT_V2, PROGRESS_RTG_V1}:
+        if turn_credit_version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
             if (
                 not isinstance(train_metadata, dict)
                 or train_metadata.get("turn_credit_version") != turn_credit_version

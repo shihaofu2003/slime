@@ -41,7 +41,7 @@ from reward import evaluate_simulation_with_constructor, reward_info_to_dict
 from reward_postprocess import (
     TURN_CREDIT_V1,
     TURN_CREDIT_V2,
-    PROGRESS_RTG_V1,
+    PROGRESS_DB_COUNT_V1,
     TurnCreditAlignmentError,
     build_turn_credit_v2,
     build_token_penalties,
@@ -339,7 +339,7 @@ def _fill_sample_from_simulation(
                     turn_errors=list(field_reward_signals.get("turn_errors") or []),
                 )
                 sample.train_metadata = {"token_penalties": token_penalties}
-            elif turn_credit_version == PROGRESS_RTG_V1:
+            elif turn_credit_version == PROGRESS_DB_COUNT_V1:
                 _, turn_details = build_token_penalties(
                     assistant_spans=assistant_spans,
                     assistant_source_indices=assistant_source_indices,
@@ -349,7 +349,7 @@ def _fill_sample_from_simulation(
                     turn_errors=[error for error in field_reward_signals.get("turn_errors", [])
                                  if error["type"] in {"malformed_json", "nonexistent_tool", "wrong_namespace_tool"}],
                 )
-                sample.train_metadata = {"turn_credit_version": PROGRESS_RTG_V1}
+                sample.train_metadata = {"turn_credit_version": PROGRESS_DB_COUNT_V1}
             else:
                 turn_details = build_turn_credit_v2(
                     assistant_spans=assistant_spans,
@@ -366,7 +366,7 @@ def _fill_sample_from_simulation(
                     "tau2_turn_credit_response_start": response_start,
                 }
             )
-            if turn_credit_version == PROGRESS_RTG_V1:
+            if turn_credit_version == PROGRESS_DB_COUNT_V1:
                 for detail in turn_details:
                     source = simulation.messages[detail["simulation_message_index"]]
                     raw_text = (source.raw_data or {}).get("text")
@@ -619,9 +619,9 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
         )
         orchestrator_class = Orchestrator
         progress_kwargs = {}
-        if configured_turn_credit_version() == PROGRESS_RTG_V1:
-            from progress import ProgressOrchestrator, StatePotential
-            orchestrator_class = ProgressOrchestrator
+        if configured_turn_credit_version() == PROGRESS_DB_COUNT_V1:
+            from progress import DBCountProgressOrchestrator, StatePotential
+            orchestrator_class = DBCountProgressOrchestrator
             progress_kwargs["progress_potential"] = StatePotential(
                 task, environment_constructor, reference_key=(domain, str(db_path.resolve()))
             )
@@ -639,7 +639,7 @@ def _run_tau2_rollout_sync(args, sample: Sample, sampling_params: dict[str, Any]
             timeout=timeout,
         )
         candidate = orchestrator.run()
-        if configured_turn_credit_version() == PROGRESS_RTG_V1:
+        if configured_turn_credit_version() == PROGRESS_DB_COUNT_V1:
             sample.metadata["tau2_progress"] = orchestrator.progress_payload(candidate)
         token_len = _conversation_token_len(
             generator,
@@ -732,7 +732,7 @@ def _failed_sample(args, sample: Sample, error: BaseException) -> Sample:
     turn_credit_version = configured_turn_credit_version()
     if turn_credit_version == TURN_CREDIT_V1:
         sample.train_metadata = {"token_penalties": [0.0] * sample.response_length}
-    elif turn_credit_version in {TURN_CREDIT_V2, PROGRESS_RTG_V1}:
+    elif turn_credit_version in {TURN_CREDIT_V2, PROGRESS_DB_COUNT_V1}:
         sample.train_metadata = {
             "turn_credit_version": turn_credit_version,
             "token_advantages": [0.0] * sample.response_length,

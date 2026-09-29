@@ -389,3 +389,7 @@ One entry per experiment: name, purpose, link to its README.
 - [vitabench-qwen3-4b-instruct-2507-full-eval](../experiments/vitabench-qwen3-4b-instruct-2507-full-eval/README.md) —
   complete Chinese VitaBench evaluation of raw Qwen3-4B-Instruct-2507 with
   local non-thinking Qwen3.6-27B User and Evaluator roles on eight 80GB GPUs.
+
+- [tau2-credit-assignment](../experiments/tau2-credit-assignment/README.md)：Processed SFT 状态进展 RTG；旧配方 iter39 seed300 结果为 56.50 / 81.00 / 28.00%，未达续训条件，新配方单独比较。状态评分效率优化已验证；优化版不固定领域配比 100 步训练 Job 19000 已提交（20260914_085453-mixed-fast-train100）。 iter49 全域评测 Job 19107 已提交（seed300，4 trials，等待额度）。 Job19000 已完成；iter99 全域评测 Job19208 已提交（seed300，4 trials）。 iter79 全域评测 Job19231 已提交（同协议 seed300）。
+
+- [tau2-db-count-v1](../experiments/tau2-db-count-v1/README.md)：独立代码版本；按 Agent/User 总 DB 差异条数分组。Job19187 正在训练，Job19303 负责第50步四域评测，Job19311 每小时监控并自动安排后续50步 checkpoint 的四域评测。

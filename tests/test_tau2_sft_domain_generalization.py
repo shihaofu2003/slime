@@ -13,6 +13,9 @@ SPEC.loader.exec_module(prepare)
 SPEC2 = importlib.util.spec_from_file_location('summary_domain_sft', Path(SPEC.origin).with_name('summarize.py'))
 summary = importlib.util.module_from_spec(SPEC2)
 SPEC2.loader.exec_module(summary)
+SPEC3 = importlib.util.spec_from_file_location('training_report', Path(SPEC.origin).with_name('training_report.py'))
+training_report = importlib.util.module_from_spec(SPEC3)
+SPEC3.loader.exec_module(training_report)
 
 
 class PreparationTest(unittest.TestCase):
@@ -45,6 +48,18 @@ class PreparationTest(unittest.TestCase):
         self.assertEqual(stats['coverage_counts'], {1: 6, 2: 13})
         self.assertEqual(stats['input_tokens'], 320)
         self.assertEqual(stats['supervised_tokens'], 64)
+
+
+class TrainingReportTest(unittest.TestCase):
+    def test_completed_loss_log_and_real_failures(self):
+        log = "step 0: {'train/loss': 1.5, 'train/step': 0}\nstep 1: {'train/loss': 0.9, 'train/step': 1}\ntraining_elapsed_seconds=42"
+        report = training_report.read_training_log(log, 2)
+        self.assertEqual(report['loss_by_update'], [1.5, 0.9])
+        self.assertEqual(report['elapsed_seconds'], 42)
+        with self.assertRaisesRegex(ValueError, 'expected 3'):
+            training_report.read_training_log(log, 3)
+        with self.assertRaisesRegex(ValueError, 'non-finite'):
+            training_report.read_training_log(log.replace('0.9', 'nan'), 2)
 
 
 class MetricsTest(unittest.TestCase):

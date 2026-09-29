@@ -121,7 +121,13 @@ def main():
         point['overall'] = np.concatenate(list(diff.values())).mean(axis=0).tolist()
         point['macro'] = np.mean(list(point[d] for d in QUOTAS),axis=0).tolist()
         comparisons.append(dict(arm=arm, control=control, difference=point, ci95=intervals))
-    payload = dict(table=table, comparisons=comparisons, diagnostics=diagnostics)
+    training = {}
+    for arm in ARMS:
+        report_path = args.root / arm / 'full/training_report.json'
+        if report_path.exists():
+            report = json.loads(report_path.read_text())
+            training[arm] = {key: value for key, value in report.items() if key != 'loss_by_update'}
+    payload = dict(table=table, comparisons=comparisons, diagnostics=diagnostics, training=training)
     (args.root/'results.json').write_text(json.dumps(payload,indent=2)+'\n')
     lines = ['# Four-domain SFT comparison', '', 'All values are percentages; seeds retain separate four-trial metrics.', '',
              '| Arm | Seed | Domain | pass@1 | pass@4(any) | pass^4 |', '|---|---|---|---:|---:|---:|']
@@ -133,7 +139,32 @@ def main():
         for domain, values in comparison['difference'].items():
             cells = [f'{100*v:+.2f} [{100*ci[0]:+.2f}, {100*ci[1]:+.2f}]' for v,ci in zip(values, comparison['ci95'][domain])]
             lines.append('| '+' | '.join([comparison['arm']+' − '+comparison['control'],domain]+cells)+' |')
-    lines += ['', 'Diagnostics (null = N/A) are in results.json. Compute differs between arms; one training seed; Banking retrieval distributions differ.']
+    if training:
+        lines += ['', '## Training', '',
+                  'Token counts and coverage describe samples actually consumed, including the partial second pass.', '',
+                  '| Arm | Updates | Samples | Input tokens | Supervised tokens | First loss | Final loss | Seconds |',
+                  '|---|---:|---:|---:|---:|---:|---:|---:|']
+        for arm, report in training.items():
+            coverage = report['coverage']
+            values = [arm, str(report['updates']), str(coverage['consumed_samples']),
+                      str(coverage['input_tokens']), str(coverage['supervised_tokens']),
+                      f"{report['first_loss']:.5f}", f"{report['final_loss']:.5f}",
+                      str(report['elapsed_seconds']) if report['elapsed_seconds'] is not None else 'N/A']
+            lines.append('| ' + ' | '.join(values) + ' |')
+    lines += ['', '## Diagnostics', '',
+              'Rates are percentages. Missing measurements are N/A; termination reasons are trajectory counts.', '',
+              '| Arm | Seed | Domain | Action accuracy | DB accuracy | Truncation | Infrastructure errors | Terminations |',
+              '|---|---|---|---:|---:|---:|---:|---|']
+    for arm, seeds in diagnostics.items():
+        for seed, domains in seeds.items():
+            for domain, values in domains.items():
+                rates = ['N/A' if values[key] is None else f'{100*values[key]:.2f}'
+                         for key in ('action_accuracy', 'db_accuracy', 'truncation')]
+                infra = values['infrastructure_errors']
+                endings = ', '.join(f'{name}: {count}' for name, count in sorted(values['termination_reasons'].items()))
+                lines.append('| ' + ' | '.join([arm, str(seed), domain] + rates +
+                                              ['N/A' if infra is None else str(infra), endings]) + ' |')
+    lines += ['', 'Compute differs between arms; one training seed; Banking retrieval distributions differ.']
     (args.root/'RESULTS.md').write_text('\n'.join(lines)+'\n')
 
 

@@ -13,6 +13,19 @@ export PYTHONPATH="${PROJECT_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export SAVE_DIR="${ROOT}/${ARM}/${MODE}/checkpoints"
 export MODEL_PATH="${SAVE_DIR}/final_hf"
 case "${STAGE}" in
+  pipeline)
+    bash "${CODE}/run.sh" train "${ARM}" "${MODE}"
+    bash "${CODE}/run.sh" convert "${ARM}" "${MODE}"
+    ray stop --force
+    bash "${CODE}/run.sh" eval "${ARM}" "${MODE}" 300
+    if [[ "${MODE}" == full ]]; then
+      bash "${CODE}/run.sh" eval "${ARM}" "${MODE}" 301
+    fi
+    ;;
+  convert-eval)
+    bash "${CODE}/run.sh" convert "${ARM}" "${MODE}"
+    bash "${CODE}/run.sh" eval "${ARM}" "${MODE}" "${SEED}"
+    ;;
   test)
     python3 "${PROJECT_ROOT}/tests/test_tau2_sft_domain_generalization.py"
     python3 "${PROJECT_ROOT}/tests/test_tau2_official_async_eval.py"
@@ -32,10 +45,13 @@ case "${STAGE}" in
     export LR=1e-5 MIN_LR=1e-6
     export SAVE_INTERVAL
     SAVE_INTERVAL="$(python3 -c 'import os; n=sum(1 for _ in open(os.environ["SFT_DATA_PATH"])); print(int(os.environ["NUM_EPOCH"])*(n//16))')"
-    mkdir -p "${SAVE_DIR}"
+    export WANDB_DIR="${ROOT}/${ARM}/${MODE}/wandb"
+    export WANDB_GROUP="tau2-sft-domain-generalization-${BATCH}-${ARM}-${MODE}"
+    mkdir -p "${SAVE_DIR}" "${WANDB_DIR}"
     start="$(date +%s)"
-    bash "${PROJECT_ROOT}/examples/tau2-bench/sft/run_qwen3_4b_instruct_2507_sft.sh"
-    echo "training_elapsed_seconds=$(( $(date +%s) - start )) updates=${SAVE_INTERVAL}"
+    bash "${PROJECT_ROOT}/examples/tau2-bench/sft/run_qwen3_4b_instruct_2507_sft.sh" 2>&1 | tee "${ROOT}/${ARM}/${MODE}/train.log"
+    echo "training_elapsed_seconds=$(( $(date +%s) - start )) updates=${SAVE_INTERVAL}" | tee -a "${ROOT}/${ARM}/${MODE}/train.log"
+    python3 "${CODE}/training_report.py" "${ROOT}" "${ARM}" "${MODE}"
     ;;
   convert)
     iteration="$(cat "${SAVE_DIR}/latest_checkpointed_iteration.txt")"

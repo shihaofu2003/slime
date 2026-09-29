@@ -390,4 +390,4 @@ One entry per experiment: name, purpose, link to its README.
   complete Chinese VitaBench evaluation of raw Qwen3-4B-Instruct-2507 with
   local non-thinking Qwen3.6-27B User and Evaluator roles on eight 80GB GPUs.
 
-- [tau2-sft-domain-generalization](../experiments/tau2-sft-domain-generalization/README.md): four-domain mixed versus independent expert SFT and matched full-domain evaluation.
+- [tau2-sft-domain-generalization](../experiments/tau2-sft-domain-generalization/README.md): Mixed 与 Airline 专家已完成两 seed 全域评测；Airline-only 未超过 Mixed 的目标域表现，且 Retail 等跨域能力退化。包含原始模型 seed300 对照；Retail 已按用户要求停止，其余专家、raw seed301 与 CI 尚未完成。
